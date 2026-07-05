@@ -210,7 +210,7 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
                 <div>SPECIAL</div>
                 <div class="special-bar"><div class="special-bar-fill" id="specialBarFill"></div></div>
             </div>
-            <div class="hint-text">TAP ENEMY: GRAPPLE<br>TAP DOWNED: PIN<br>TAP SPOT: THROW<br>TAP WEAPON: PICK UP</div>
+            <div class="hint-text">A: GRAPPLE / PIN / PICK UP<br>IN GRAPPLE: DIR + A = THROW, B = STRIKE<br>B NEAR DOWNED: STOMP<br>MASH B TO ESCAPE &amp; KICK OUT</div>
 
             <div class="intro-overlay hidden" id="introOverlay">
                 <div class="intro-name intro-p1" id="introP1"></div>
@@ -242,7 +242,7 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
             <div class="buttons-section">
                 <div class="btn-cluster">
                     <div class="circle-btn btn-y" id="btnY">Y<span class="btn-label">SPECIAL</span></div>
-                    <div class="circle-btn btn-a" id="btnA">A<span class="btn-label">JUMP</span></div>
+                    <div class="circle-btn btn-a" id="btnA">A<span class="btn-label">GRAPPLE</span></div>
                     <div class="circle-btn btn-b" id="btnB">B<span class="btn-label">ATTACK</span></div>
                 </div>
             </div>
@@ -537,7 +537,7 @@ const M = {
     winner:null, winMethod:null, winFrame:0
 };
 
-const input = { dpad:{x:0,y:0}, attackTap:false, jumpTap:false, specialTap:false };
+const input = { dpad:{x:0,y:0}, attackTap:false, grapTap:false, specialTap:false };
 
 // ---------------- JUICE HELPERS ----------------
 function addFx(x, y, text, opts = {}) {
@@ -659,29 +659,31 @@ function showVictory() {
 
 // ---------------- GEOMETRY ----------------
 let coverTf = { dx:0, dy:0, dw:1, dh:1 };
+let CAM = { y: 0 };   // vertical camera pan (follows ringside brawls)
 function computeRects() {
+    // RING-DOMINANT CAMERA (Wrestling Revolution framing): the mat IS the playfield
     const iw = ARENA.naturalWidth || 1672, ih = ARENA.naturalHeight || 941;
-    const scale = Math.max(canvas.width / iw, canvas.height / ih);
-    const dw = iw * scale, dh = ih * scale;
-    const dx = (canvas.width - dw) / 2, dy = (canvas.height - dh) / 2;
-    coverTf = { dx, dy, dw, dh };
     const mt = activeStage.mat;
+    const mobile = canvas.width < 640;
+    const safeT = 96, safeB = canvas.height - 210;
+    const usableH = safeB - safeT;
+    const scaleW = (canvas.width * (mobile ? 0.94 : 0.88)) / ((mt.x1 - mt.x0) * iw);
+    const scaleH = usableH / ((mt.y1 - mt.y0) * ih);
+    const scale = Math.min(scaleW, scaleH);
+    const dw = iw * scale, dh = ih * scale;
+    const dx = canvas.width / 2 - (mt.x0 + mt.x1) / 2 * dw;
+    const matHvis = (mt.y1 - mt.y0) * dh;
+    const dy = (safeT + Math.max(0, (usableH - matHvis) * 0.30)) - mt.y0 * dh;
+    coverTf = { dx, dy, dw, dh };
     matRect = { L: dx + mt.x0 * dw, R: dx + mt.x1 * dw, T: dy + mt.y0 * dh, B: dy + mt.y1 * dh };
-    const safeL = 30, safeR = canvas.width - 30, safeT = 96, safeB = canvas.height - 210;
-    matRect.L = Math.max(matRect.L, safeL); matRect.R = Math.min(matRect.R, safeR);
-    matRect.T = Math.max(matRect.T, safeT); matRect.B = Math.min(matRect.B, safeB);
-    if (matRect.R - matRect.L < 180 || matRect.B - matRect.T < 120)
-        matRect = { L: safeL, R: safeR, T: safeT, B: safeB };
-    // floor: exit through the FRONT only (toward camera) — matches arena perspective
-    const rd = Math.max(34, Math.min(84, (matRect.B - matRect.T) * 0.34));
+    // floor: exit through the FRONT (camera pans down to follow)
     floorRect = {
-        L: Math.max(safeL, matRect.L - 70), R: Math.min(safeR, matRect.R + 70),
+        L: Math.max(10, matRect.L - 60), R: Math.min(canvas.width - 10, matRect.R + 60),
         T: matRect.T,
-        // keep DROPPED bodies (feet = y + 52 + drop) above the touch controls
-        B: Math.max(matRect.B + 34, Math.min(safeB - 52 - rd, matRect.B + 95))
+        B: matRect.B + Math.min(130, (matRect.B - matRect.T) * 0.42)
     };
 }
-function ringDrop() { return Math.max(34, Math.min(84, (matRect.B - matRect.T) * 0.34)); }
+function ringDrop() { return Math.max(34, Math.min(84, (matRect.B - matRect.T) * 0.22)); }
 function onMat(p) { return p.y <= matRect.B + 8 && p.x > matRect.L - 12 && p.x < matRect.R + 12 && p.y > matRect.T - 12; }
 function isRingside(p) { return p.y > matRect.B + 8; }
 
@@ -709,7 +711,7 @@ function bindButton(id, fn) {
     btn.addEventListener('touchstart', press); btn.addEventListener('touchend', rel); btn.addEventListener('touchcancel', rel);
     btn.addEventListener('mousedown', press); btn.addEventListener('mouseup', rel);
 }
-bindButton('btnA', () => input.jumpTap = true);
+bindButton('btnA', () => input.grapTap = true);
 bindButton('btnB', () => input.attackTap = true);
 bindButton('btnY', () => input.specialTap = true);
 
@@ -718,7 +720,7 @@ document.addEventListener('keydown', e => {
     if (KEYMAP[e.key]) { const [a,v] = KEYMAP[e.key]; input.dpad[a] = v; e.preventDefault(); }
     const k = e.key.toLowerCase();
     if (k === 'z') input.attackTap = true;
-    if (k === 'x') input.jumpTap = true;
+    if (k === 'x') input.grapTap = true;
     if (k === 'c') input.specialTap = true;
 });
 document.addEventListener('keyup', e => {
@@ -734,7 +736,7 @@ function ringTap(e) {
     const cX = e.touches ? e.touches[0].clientX : e.clientX;
     const cY = e.touches ? e.touches[0].clientY : e.clientY;
     const x = (cX - rect.left) / rect.width * canvas.width;
-    const y = (cY - rect.top) / rect.height * canvas.height;
+    const y = (cY - rect.top) / rect.height * canvas.height + CAM.y;
     if (NET.mode === 'guest') { NET.queueTap(x, y); return; }   // guest: send to host
     performTap(M.p1, M.p2, x, y);
 }
@@ -832,7 +834,6 @@ function tryStrike(att, def) {
     att.vx += att.direction * 1.8;
     att.swingTimer = 18;
     const inBand = Math.abs(ady) < 55;
-    if (def.jumpTimer > 16) { addFx(def.x, def.y, 'DODGED!', { color: '#66aaff' }); Snd.whoosh(); return; }
 
     if (att.weapon) {
         const wd = WEAPON_TYPES[att.weapon.type];
@@ -879,6 +880,68 @@ function trySpecial(att, def) {
         addFx(att.x, att.y - 30, 'WHIFF!', { color: '#888' });
         Snd.whoosh();
     }
+}
+
+// A button — Wrestling Revolution style context action
+function performGrappleBtn(p, o, dir) {
+    // holding a grapple: A throws in held direction (or slams in place)
+    if (M.grapple && M.grapple.holder === p && !M.grapple.isPin) {
+        const dx = dir.x || p.direction, dy = dir.y || 0;
+        const d = Math.hypot(dx, dy) || 1;
+        o.vx = dx / d * 13; o.vy = dy / d * 8;
+        o.downTimer = 75;
+        dealDamage(p, o, 9, { text: dir.x || dir.y ? 'THROWN!' : 'SLAMMED!', slam: true });
+        if (o.weapon) dropWeapon(o);
+        M.grapple = null;
+        return;
+    }
+    if (M.grapple) return;
+    const adx = Math.abs(o.x - p.x), ady = Math.abs(o.y - p.y);
+    // pin a downed opponent
+    if (o.downTimer > 0 && adx < 100 && ady < 70) {
+        p.x = o.x - (Math.sign(o.x - p.x) || p.direction) * 26; p.y = o.y;
+        M.grapple = { holder: p, victim: o, frames: 0, isPin: true };
+        addFx(o.x, o.y, 'PIN ATTEMPT!', { color: '#ff4455', size: 20 });
+        Snd.crowdPop();
+        return;
+    }
+    // tie-up a standing opponent
+    if (o.downTimer <= 0 && o.invuln <= 0 && adx < 80 && ady < 55) {
+        if (p.weapon) dropWeapon(p);
+        p.direction = Math.sign(o.x - p.x) || p.direction;
+        M.grapple = { holder: p, victim: o, frames: 0, isPin: false };
+        addFx(o.x, o.y, 'GRAPPLE!', { color: '#ffcc33' });
+        return;
+    }
+    // pick up the nearest weapon
+    if (!p.weapon) {
+        let best = -1, bd = 90;
+        M.weaponsOnGround.forEach((w, i) => {
+            const d = Math.hypot(p.x - w.x, p.y - w.y);
+            if (d < bd) { bd = d; best = i; }
+        });
+        if (best >= 0) {
+            const w = M.weaponsOnGround[best];
+            p.weapon = { type: w.type, durability: WEAPON_TYPES[w.type].durability };
+            M.weaponsOnGround.splice(best, 1);
+            addFx(w.x, w.y, WEAPON_TYPES[w.type].name + '!', { color: '#8dff1e' });
+            Snd.whoosh();
+            return;
+        }
+    } else { dropWeapon(p); addFx(p.x, p.y - 20, 'DROPPED', { color: '#999', size: 12 }); }
+}
+
+// B near a downed opponent = ground stomp
+function tryStomp(att, def) {
+    if (def.downTimer > 12 && def.invuln <= 0 &&
+        Math.abs(def.x - att.x) < 75 && Math.abs(def.y - att.y) < 55) {
+        att.swingTimer = 14;
+        att.attackCooldown = 30;
+        dealDamage(att, def, 3, { text: 'STOMP!', size: 13, meterGain: 3 });
+        Snd.kick();
+        return true;
+    }
+    return false;
 }
 
 function dropWeapon(f) {
@@ -1013,10 +1076,14 @@ function simTick() {
         }
     }
 
-    if (input.attackTap && !p1Locked && p1.attackCooldown <= 0 && p1.downTimer <= 0) tryStrike(p1, p2);
-    if (input.jumpTap && p1.jumpTimer <= 0 && p1.downTimer <= 0 && !p1Locked) { p1.jumpTimer = 30; Snd.whoosh(); }
+    if (input.attackTap && !p1Locked && p1.attackCooldown <= 0 && p1.downTimer <= 0) {
+        if (!tryStomp(p1, p2)) tryStrike(p1, p2);
+    }
+    if (input.grapTap && p1.downTimer <= 0 && (!p1Locked || (M.grapple && M.grapple.holder === p1))) {
+        performGrappleBtn(p1, p2, input.dpad);
+    }
     if (input.specialTap && !p1Locked && p1.downTimer <= 0) trySpecial(p1, p2);
-    input.attackTap = input.jumpTap = input.specialTap = false;
+    input.attackTap = input.grapTap = input.specialTap = false;
 
     // ---- P2: AI offline, remote human online ----
     if (NET.mode === 'host') applyRemote(p2, p1);
@@ -1200,7 +1267,6 @@ function moveToward(ai, tx, ty, spd) {
 function aiStrike(ai, target, wd) {
     ai.swingTimer = 18;
     ai.direction = Math.sign(target.x - ai.x) || ai.direction;
-    if (target.jumpTimer > 16) { addFx(target.x, target.y, 'DODGED!', { color: '#66aaff' }); return; }
     if (target.invuln > 0) return;
     const dmg = (wd ? wd.damage : 4) * DIFF[difficulty].aiDmg;
     target.vx = Math.sign(target.x - ai.x) * 6.5;
@@ -1249,10 +1315,14 @@ function applyRemote(p, opp) {
         inp.attack = false;
         if (M.grapple.escape >= 3) { M.grapple = null; addFx(p.x, p.y, 'ESCAPE!', { color: '#66aaff' }); }
     }
-    if (inp.attack && !locked && p.attackCooldown <= 0 && p.downTimer <= 0) tryStrike(p, opp);
-    if (inp.jump && p.jumpTimer <= 0 && p.downTimer <= 0 && !locked) { p.jumpTimer = 30; }
+    if (inp.attack && !locked && p.attackCooldown <= 0 && p.downTimer <= 0) {
+        if (!tryStomp(p, opp)) tryStrike(p, opp);
+    }
+    if (inp.grap && p.downTimer <= 0 && (!locked || (M.grapple && M.grapple.holder === p))) {
+        performGrappleBtn(p, opp, { x: inp.dx, y: inp.dy });
+    }
     if (inp.special && !locked && p.downTimer <= 0) trySpecial(p, opp);
-    inp.attack = inp.jump = inp.special = false;
+    inp.attack = inp.grap = inp.special = false;
 
     // queued taps (already denormalized on receipt)
     while (inp.taps.length) {
@@ -1275,7 +1345,7 @@ const FIREBASE_CONFIG = {
 const NET = {
     mode: 'none',           // none | host | guest
     db: null, roomCode: null, roomRef: null,
-    remote: { dx: 0, dy: 0, attack: false, jump: false, special: false, taps: [] },
+    remote: { dx: 0, dy: 0, attack: false, grap: false, special: false, taps: [] },
     snapPrev: null, snapNext: null, snapAt: 0,
     lastSentInput: 0, lastSentSnap: 0, prevHP: [0, 0], prevDown: [0, 0], prevPin: 0,
     ready: false, oppLeft: false,
@@ -1386,7 +1456,7 @@ const NET = {
                 const v = s.val(); if (!v) return;
                 this.remote.dx = v.d ? v.d[0] : 0;
                 this.remote.dy = v.d ? v.d[1] : 0;
-                if (v.b) { this.remote.attack ||= !!(v.b & 1); this.remote.jump ||= !!(v.b & 2); this.remote.special ||= !!(v.b & 4); }
+                if (v.b) { this.remote.attack ||= !!(v.b & 1); this.remote.grap ||= !!(v.b & 2); this.remote.special ||= !!(v.b & 4); }
                 (v.t || []).forEach(t => this.remote.taps.push({ x: this.dx(t[0]), y: this.dy(t[1]) }));
                 if (v.t && v.t.length) this.roomRef.child('input/t').remove();
             });
@@ -1419,11 +1489,11 @@ const NET = {
         const now = performance.now();
         if (now - this.lastSentInput < 50) return;   // 20Hz
         this.lastSentInput = now;
-        const b = (input.attackTap ? 1 : 0) | (input.jumpTap ? 2 : 0) | (input.specialTap ? 4 : 0);
+        const b = (input.attackTap ? 1 : 0) | (input.grapTap ? 2 : 0) | (input.specialTap ? 4 : 0);
         const pkt = { d: [input.dpad.x, input.dpad.y], b };
         if (this.pendingTaps.length) { pkt.t = this.pendingTaps; this.pendingTaps = []; }
         this.roomRef.child('input').set(pkt);
-        input.attackTap = input.jumpTap = input.specialTap = false;
+        input.attackTap = input.grapTap = input.specialTap = false;
     },
     // ---- host: broadcast snapshot ----
     packF(p) {
@@ -1657,13 +1727,23 @@ function render() {
         M.shake *= 0.88;
     } else M.shake = 0;
 
-    // 1. arena
+    computeRects();
+    // camera pan: follow the brawl to ringside
+    const anyOut = (M.p1 && isRingside(M.p1)) || (M.p2 && isRingside(M.p2));
+    const panMax = Math.max(0, (floorRect.B + 70 + ringDrop()) - (canvas.height - 200));
+    const panTarget = anyOut ? panMax : 0;
+    CAM.y += (panTarget - CAM.y) * 0.06;
+    ctx.save();
+    ctx.translate(0, -CAM.y);
+
+    // 1. arena (zoomed on the ring; backfill exposed edges)
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(-50, -CAM.y === 0 ? 0 : -200, canvas.width + 100, canvas.height + 400);
     if (ARENA.complete && ARENA.naturalWidth) {
         ctx.drawImage(ARENA, coverTf.dx, coverTf.dy, coverTf.dw, coverTf.dh);
     } else {
         ctx.fillStyle = '#101010'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
-    computeRects();
 
     // 2. paint splats (mat + floor, permanent)
     M.splats.forEach(s => {
@@ -1724,6 +1804,7 @@ function render() {
         ctx.fillText(f.text, f.x, f.y);
     });
     ctx.globalAlpha = 1;
+    ctx.restore();   // end camera pan
 
     // 9. vignette
     const vg = ctx.createRadialGradient(canvas.width/2, canvas.height*0.45, canvas.height*0.42,
@@ -1769,8 +1850,8 @@ function drawFighter(f) {
     if (img && img.complete && img.naturalWidth) {
         const isDown = f.downTimer > 0 || (M.grapple && M.grapple.isPin && M.grapple.victim === f);
         const baseH = isDown
-            ? Math.max(50, Math.min(matH * 0.30, canvas.height * 0.11))
-            : Math.max(88, Math.min(matH * 0.62, canvas.height * 0.17));
+            ? Math.max(50, Math.min(matH * 0.20, canvas.height * 0.10))
+            : Math.max(88, Math.min(matH * 0.42, canvas.height * 0.21));
         const targetH = baseH * depthScale;
         const scale = targetH / img.naturalHeight;
         const w = img.naturalWidth * scale, h = targetH;
