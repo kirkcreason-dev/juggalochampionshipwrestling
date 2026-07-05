@@ -517,7 +517,7 @@ function makeFighter(isP1) {
         x:0, y:0, vx:0, vy:0, direction: isP1 ? 1 : -1,
         health:100, maxHealth:100, ghostHP:100,
         weapon:null, attackCooldown:0, swingTimer:0,
-        stunTimer:0, downTimer:0, jumpTimer:0,
+        stunTimer:0, downTimer:0, jumpTimer:0, invuln:0,
         specialCharge:0, walkAnim:0, moving:false, elev:0,
         combo:0, comboTimer:0,
         // AI
@@ -589,7 +589,7 @@ function initializeMatch() {
     M.p1 = makeFighter(true);  M.p1.wrestler = gameState.p1Selected;
     M.p2 = makeFighter(false); M.p2.wrestler = gameState.p2Selected;
     [M.p1, M.p2].forEach(p => {
-        p.maxHealth = p.wrestler.health * 10;
+        p.maxHealth = p.wrestler.health * 12;
         p.health = p.ghostHP = p.maxHealth;
     });
 
@@ -789,7 +789,7 @@ function performTap(p1, p2, x, y) {
 function dealDamage(attacker, victim, base, opts = {}) {
     // combo scaling
     attacker.combo = (attacker.comboTimer > 0) ? attacker.combo + 1 : 1;
-    attacker.comboTimer = 90;
+    attacker.comboTimer = 60;
     const scale = Math.max(0.6, 1 - (attacker.combo - 1) * 0.05);
     const dmg = base * attacker.wrestler.power * scale;
     victim.health = Math.max(0, victim.health - dmg);
@@ -800,13 +800,13 @@ function dealDamage(attacker, victim, base, opts = {}) {
     if (opts.text) addFx(victim.x, victim.y - 26, opts.text, { color: opts.color || '#fff', size: opts.size || 15 });
     addParticles(victim.x, victim.y, dmg >= 12 ? 14 : 7, 3, dmg >= 15);
     if (dmg >= 8) addSplat(victim.x, victim.y);
-    hitStop(dmg >= 15 ? 7 : dmg >= 10 ? 5 : 3);
+    hitStop(dmg >= 15 ? 7 : dmg >= 10 ? 4 : 2);
     shake(dmg >= 15 ? 9 : dmg >= 10 ? 5 : 2.5);
     if (opts.slam) { Snd.slam(); shake(10); } 
 
     // combo display
     if (attacker.combo >= 2) {
-        const tag = attacker.combo >= 5 ? 'LUNACY!! x' + attacker.combo : attacker.combo + ' HITS!';
+        const tag = attacker.combo >= 9 ? 'TOTAL LUNACY!!' : attacker.combo >= 5 ? 'LUNACY!! x' + attacker.combo : attacker.combo + ' HITS!';
         addFx(victim.x + (attacker.isP1 ? -58 : 58), victim.y - 52, tag,
               { color: attacker.isP1 ? '#8dff1e' : '#ff8c1a', size: 15 + Math.min(10, attacker.combo * 1.5) });
         if (attacker.combo === 5) Snd.crowdPop();
@@ -814,13 +814,14 @@ function dealDamage(attacker, victim, base, opts = {}) {
 
     // dramatic finish windows: hurt opponents get knocked down by solid hits
     if (victim.health > 0 && victim.health < victim.maxHealth * 0.22 && dmg >= 4 &&
-        victim.downTimer <= 0 && Math.random() < 0.35) {
+        victim.downTimer <= 0 && Math.random() < 0.25) {
+        attacker.combo = 0; attacker.comboTimer = 0;   // knockdown ends the combo
         victim.downTimer = 85;
         addFx(victim.x, victim.y + 18, 'DOWN!', { color: '#ff4455', size: 18 });
         Snd.slam(); shake(6);
     }
     // charge attacker meter
-    attacker.specialCharge = Math.min(100, attacker.specialCharge + (opts.meterGain || 8));
+    attacker.specialCharge = Math.min(100, attacker.specialCharge + (opts.meterGain || 6));
     // defender gains a little too (comeback mechanic)
     victim.specialCharge = Math.min(100, victim.specialCharge + 3);
 }
@@ -828,16 +829,16 @@ function dealDamage(attacker, victim, base, opts = {}) {
 function tryStrike(att, def) {
     const adx = def.x - att.x, ady = def.y - att.y;
     att.direction = Math.sign(adx) || att.direction;
-    att.vx += att.direction * 2.5;
+    att.vx += att.direction * 1.8;
     att.swingTimer = 18;
     const inBand = Math.abs(ady) < 55;
     if (def.jumpTimer > 16) { addFx(def.x, def.y, 'DODGED!', { color: '#66aaff' }); Snd.whoosh(); return; }
 
     if (att.weapon) {
         const wd = WEAPON_TYPES[att.weapon.type];
-        att.attackCooldown = 30;
-        if (inBand && Math.abs(adx) < wd.range && def.downTimer <= 0) {
-            def.vx = Math.sign(def.x - att.x) * 5.5;
+        att.attackCooldown = 42;
+        if (inBand && Math.abs(adx) < wd.range && def.downTimer <= 0 && def.invuln <= 0) {
+            def.vx = Math.sign(def.x - att.x) * 8;
             def.stunTimer = 20;
             dealDamage(att, def, wd.damage, { text: wd.name + ' SHOT!', color: '#ff8c1a', meterGain: 12 });
             (Snd[wd.sfx === 'guitar' ? 'guitarSmash' : wd.sfx] || Snd.whack)();
@@ -850,10 +851,11 @@ function tryStrike(att, def) {
             if (wd.damage >= 15) { def.downTimer = 90; addFx(def.x, def.y + 18, 'DOWN!', { color: '#ff4455' }); Snd.slam(); }
         } else Snd.whoosh();
     } else {
-        att.attackCooldown = 16;
-        if (inBand && Math.abs(adx) < 105 && def.downTimer <= 0) {
-            def.vx = Math.sign(def.x - att.x) * 3.5;
-            dealDamage(att, def, 5, {});
+        att.attackCooldown = 22;
+        if (inBand && Math.abs(adx) < 105 && def.downTimer <= 0 && def.invuln <= 0) {
+            def.vx = Math.sign(def.x - att.x) * 6.5;
+            def.vy = (Math.random() - 0.5) * 2;
+            dealDamage(att, def, 4, {});
             Math.random() < 0.5 ? Snd.punch() : Snd.kick();
         } else Snd.whoosh();
     }
@@ -863,7 +865,7 @@ function trySpecial(att, def) {
     if (att.specialCharge < 100) { addFx(att.x, att.y - 30, 'NOT CHARGED', { color: '#888', size: 12 }); return; }
     att.direction = Math.sign(def.x - att.x) || att.direction;
     att.swingTimer = 18;
-    if (Math.abs(def.y - att.y) < 70 && Math.abs(def.x - att.x) < 150) {
+    if (Math.abs(def.y - att.y) < 70 && Math.abs(def.x - att.x) < 150 && def.invuln <= 0) {
         att.specialCharge = 0;
         def.downTimer = 120;
         def.vx = Math.sign(def.x - att.x) * 9;
@@ -935,6 +937,8 @@ function simTick() {
         if (p.swingTimer > 0) p.swingTimer--;
         if (p.stunTimer > 0) p.stunTimer--;
         if (p.jumpTimer > 0) p.jumpTimer--;
+        if (p.invuln > 0) p.invuln--;
+        if (p.downTimer === 1) p.invuln = 32;   // brief safety on get-up
         if (p.comboTimer > 0) { p.comboTimer--; if (p.comboTimer === 0) p.combo = 0; }
     });
     if (p1.downTimer > 0) { p1.downTimer--; p1.vx *= 0.9; p1.vy *= 0.9; }
@@ -995,13 +999,13 @@ function simTick() {
     // ---- P1 control ----
     p1.moving = false;
     if (!p1Locked && p1.downTimer <= 0 && p1.stunTimer <= 0) {
-        if (input.dpad.x !== 0) { p1.vx = input.dpad.x * 4.4 * p1.wrestler.speed; p1.direction = input.dpad.x; p1.moving = true; }
-        else p1.vx *= 0.72;
-        if (input.dpad.y !== 0) { p1.vy = input.dpad.y * 3.4 * p1.wrestler.speed; p1.moving = true; }
-        else p1.vy *= 0.72;
+        if (input.dpad.x !== 0) { p1.vx = input.dpad.x * 3.6 * p1.wrestler.speed; p1.direction = input.dpad.x; p1.moving = true; }
+        else p1.vx *= 0.8;
+        if (input.dpad.y !== 0) { p1.vy = input.dpad.y * 2.7 * p1.wrestler.speed; p1.moving = true; }
+        else p1.vy *= 0.8;
     }
     if (p1.moving) {
-        p1.walkAnim += 0.18;
+        p1.walkAnim += 0.15;
         if (M.frame % 9 === 0) {
             M.particles.push({ x: p1.x + (Math.random()-0.5)*16, y: p1.y + 46 + p1.elev * ringDrop(),
                 vx: -p1.vx * 0.15, vy: -0.4 - Math.random()*0.4, life: 16, maxLife: 16,
@@ -1021,6 +1025,18 @@ function simTick() {
     // ---- physics ----
     [p1, p2].forEach(p => { p.x += p.vx; p.y += p.vy; });
     p2.vx *= 0.9; p2.vy *= 0.9;
+
+    // body collision: no standing inside each other
+    if (!M.grapple && p1.downTimer <= 0 && p2.downTimer <= 0) {
+        const cdx = p2.x - p1.x, cdy = p2.y - p1.y;
+        const cd = Math.hypot(cdx, cdy);
+        if (cd < 52 && cd > 0.01) {
+            const push = (52 - cd) / 2;
+            const ux = cdx / cd, uy = cdy / cd;
+            p1.x -= ux * push; p1.y -= uy * push * 0.5;
+            p2.x += ux * push; p2.y += uy * push * 0.5;
+        }
+    }
 
     // rope bounce: fast bodies bounce off mat edges (from inside)
     [p1, p2].forEach(p => {
@@ -1051,8 +1067,8 @@ function simTick() {
     }
 
     // meters
-    p1.specialCharge = Math.min(100, p1.specialCharge + 0.25);
-    p2.specialCharge = Math.min(100, p2.specialCharge + 0.18);
+    p1.specialCharge = Math.min(100, p1.specialCharge + 0.16);
+    p2.specialCharge = Math.min(100, p2.specialCharge + 0.13);
 
     // fx decay
     M.fx = M.fx.filter(f => { f.timer--; if (f.rise) f.y -= 0.8; return f.timer > 0; });
@@ -1096,7 +1112,7 @@ function aiUpdate(ai, target) {
     const dx = target.x - ai.x, dy = target.y - ai.y;
     const dist = Math.hypot(dx, dy);
     const D = DIFF[difficulty];
-    const aggression = Math.min(1.4, (0.55 + M.frame / 7200) * D.aiAggro);
+    const aggression = Math.min(1.25, (0.42 + M.frame / 8400) * D.aiAggro);
     ai.moving = false;
     ai.aiThink--;
 
@@ -1112,12 +1128,14 @@ function aiUpdate(ai, target) {
     }
 
     if (ai.aiThink <= 0) {
-        ai.aiThink = 18 + Math.random() * 24;
+        ai.aiThink = 26 + Math.random() * 30;
         const r = Math.random();
         if (ai.health < ai.maxHealth * 0.3 && r < 0.3) ai.aiState = 'retreat';
-        else if (!ai.weapon && r < 0.35 && M.weaponsOnGround.length) ai.aiState = 'weapon';
-        else if (r < 0.2) ai.aiState = 'strafe';
+        else if (!ai.weapon && r < 0.26 && M.weaponsOnGround.length) ai.aiState = 'weapon';
+        else if (r < 0.14) ai.aiState = 'reset';       // walk back toward mid-ring
+        else if (r < 0.36) ai.aiState = 'strafe';
         else ai.aiState = 'approach';
+        ai.circleDir = Math.random() < 0.5 ? 1 : -1;
     }
 
     switch (ai.aiState) {
@@ -1140,15 +1158,21 @@ function aiUpdate(ai, target) {
             break;
         }
         case 'strafe':
-            moveToward(ai, target.x + Math.sign(ai.x - target.x) * 130, target.y + (ai.y > target.y ? 60 : -60), 2.2);
+            moveToward(ai, target.x + Math.sign(ai.x - target.x) * 130, target.y + (ai.circleDir || 1) * 70, 2.2);
+            break;
+        case 'reset':
+            moveToward(ai, (matRect.L + matRect.R) / 2 + (Math.random() - 0.5) * 60, (matRect.T + matRect.B) / 2, 2.4);
             break;
         default: { // approach + attack
             const wd = ai.weapon ? WEAPON_TYPES[ai.weapon.type] : null;
             const range = wd ? wd.range : 100;
             if (Math.abs(dy) > 40 || Math.abs(dx) > range - 10) {
                 moveToward(ai, target.x - Math.sign(dx) * (range * 0.6), target.y, 2.3 + aggression);
+            } else if (ai.attackCooldown > 8 && target.downTimer <= 0) {
+                // circle the opponent while the arm reloads
+                moveToward(ai, target.x - Math.sign(dx) * range * 0.7, target.y + (ai.circleDir || 1) * 55, 1.7);
             } else if (ai.attackCooldown <= 0 && target.downTimer <= 0) {
-                if (Math.random() < 0.12 * aggression && dist < 110 && !M.grapple) {
+                if (Math.random() < 0.08 * aggression && dist < 110 && !M.grapple) {
                     // grapple gambit
                     if (ai.weapon) dropWeapon(ai);
                     M.grapple = { holder: ai, victim: target, frames: 0, isPin: false };
@@ -1158,7 +1182,7 @@ function aiUpdate(ai, target) {
                 } else {
                     aiStrike(ai, target, wd);
                 }
-                ai.attackCooldown = Math.max(24, 50 - aggression * 22);
+                ai.attackCooldown = Math.max(38, 68 - aggression * 24);
             }
         }
     }
@@ -1177,8 +1201,10 @@ function aiStrike(ai, target, wd) {
     ai.swingTimer = 18;
     ai.direction = Math.sign(target.x - ai.x) || ai.direction;
     if (target.jumpTimer > 16) { addFx(target.x, target.y, 'DODGED!', { color: '#66aaff' }); return; }
+    if (target.invuln > 0) return;
     const dmg = (wd ? wd.damage : 4) * DIFF[difficulty].aiDmg;
-    target.vx = Math.sign(target.x - ai.x) * 3.5;
+    target.vx = Math.sign(target.x - ai.x) * 6.5;
+    target.vy = (Math.random() - 0.5) * 2;
     dealDamage(ai, target, dmg / ai.wrestler.power, { text: wd ? wd.name + '!' : null, meterGain: 6 });
     if (wd) {
         (Snd[wd.sfx === 'guitar' ? 'guitarSmash' : wd.sfx] || Snd.whack)();
@@ -1204,12 +1230,12 @@ function applyRemote(p, opp) {
     const locked = M.grapple && (M.grapple.holder === p || M.grapple.victim === p);
     p.moving = false;
     if (!locked && p.downTimer <= 0 && p.stunTimer <= 0) {
-        if (inp.dx !== 0) { p.vx = inp.dx * 4.4 * p.wrestler.speed; p.direction = inp.dx; p.moving = true; }
-        else p.vx *= 0.72;
-        if (inp.dy !== 0) { p.vy = inp.dy * 3.4 * p.wrestler.speed; p.moving = true; }
-        else p.vy *= 0.72;
+        if (inp.dx !== 0) { p.vx = inp.dx * 3.6 * p.wrestler.speed; p.direction = inp.dx; p.moving = true; }
+        else p.vx *= 0.8;
+        if (inp.dy !== 0) { p.vy = inp.dy * 2.7 * p.wrestler.speed; p.moving = true; }
+        else p.vy *= 0.8;
     }
-    if (p.moving) p.walkAnim += 0.18;
+    if (p.moving) p.walkAnim += 0.15;
     if (p.downTimer > 0) { p.downTimer--; p.vx *= 0.9; p.vy *= 0.9; }
 
     // pinned guest mashing attack = kick out (mirrors P1 pin logic handled in grapple block via flags)
@@ -1433,7 +1459,7 @@ const NET = {
         p.downTimer = arr[4]; p.swingTimer = arr[5]; p.elev = arr[6];
         p.weapon = arr[7] ? { type: arr[7], durability: arr[8] } : null;
         p.moving = !!arr[9];
-        if (p.moving) p.walkAnim += 0.18;
+        if (p.moving) p.walkAnim += 0.15;
         p.jumpTimer = arr[10]; p.specialCharge = arr[11]; p.combo = arr[12];
     },
     guestApply() {
@@ -1727,7 +1753,7 @@ function drawFighter(f) {
     const feetY = f.y + 52 + dropY;
     const matH = matRect.B - matRect.T;
     const depth = (f.y - matRect.T) / Math.max(1, matH);
-    const depthScale = 0.8 + Math.min(1.3, depth) * 0.34;
+    const depthScale = 0.86 + Math.max(0, Math.min(1.2, depth)) * 0.22;
 
     // soft radial contact shadow + player ring indicator
     const shR = 40 * depthScale - jumpArc * 0.25;
@@ -1743,8 +1769,8 @@ function drawFighter(f) {
     if (img && img.complete && img.naturalWidth) {
         const isDown = f.downTimer > 0 || (M.grapple && M.grapple.isPin && M.grapple.victim === f);
         const baseH = isDown
-            ? Math.min(matH * 0.36, canvas.height * 0.13)
-            : Math.max(104, Math.min(matH * 0.85, canvas.height * 0.22, 200));
+            ? Math.max(50, Math.min(matH * 0.30, canvas.height * 0.11))
+            : Math.max(88, Math.min(matH * 0.62, canvas.height * 0.17));
         const targetH = baseH * depthScale;
         const scale = targetH / img.naturalHeight;
         const w = img.naturalWidth * scale, h = targetH;
@@ -1770,7 +1796,7 @@ function drawFighter(f) {
         const ph = pinning ? h * 0.78 : h;         // crouch over the pinned body
         const py = pinning ? drawY + (h - ph) : drawY;
         ctx.save();
-        if (f.stunTimer > 0 && Math.floor(f.stunTimer / 4) % 2 === 0) ctx.globalAlpha = 0.55;
+        if ((f.stunTimer > 0 || f.invuln > 0) && Math.floor(M.frame / 4) % 2 === 0) ctx.globalAlpha = 0.6;
         ctx.imageSmoothingEnabled = false;
         if (flip) { ctx.translate(f.x, 0); ctx.scale(-1, 1); ctx.drawImage(img, -w / 2, py, w, ph); }
         else ctx.drawImage(img, f.x - w / 2, py, w, ph);
