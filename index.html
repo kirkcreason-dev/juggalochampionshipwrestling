@@ -513,6 +513,7 @@ let floorRect = { L:0, R:0, T:0, B:0 };
 
 function makeFighter(isP1) {
     return {
+        climb: null, diveTimer: 0, fallFace: 'B',
         isP1, wrestler:null,
         x:0, y:0, vx:0, vy:0, direction: isP1 ? 1 : -1,
         health:100, maxHealth:100, ghostHP:100,
@@ -628,6 +629,8 @@ function spawnWeapons() {
 function endMatch(winner, method) {
     if (M.phase === 'slowmo' || M.phase === 'over') return;   // already ending
     M.grapple = null;
+    if (M.p1) { M.p1.climb = null; M.p1.diveTimer = 0; }
+    if (M.p2) { M.p2.climb = null; M.p2.diveTimer = 0; }
     M.winner = winner; M.winMethod = method; M.winFrame = M.frame;
     NET.hostReportEnd();
     M.phase = 'slowmo'; M.slowmoTimer = 90;
@@ -661,7 +664,7 @@ function showVictory() {
 
 // ---------------- GEOMETRY ----------------
 let coverTf = { dx:0, dy:0, dw:1, dh:1 };
-let CAM = { y: 0 };   // vertical camera pan (follows ringside brawls)
+let CAM = { fx: 0, fy: 0, scale: 1.12, tx: 0, ty: 0, init: false };   // follow camera (tracks the player)
 function computeRects() {
     // RING-DOMINANT CAMERA (Wrestling Revolution framing): the mat IS the playfield
     const iw = ARENA.naturalWidth || 1672, ih = ARENA.naturalHeight || 941;
@@ -737,8 +740,10 @@ function ringTap(e) {
     const rect = canvas.getBoundingClientRect();
     const cX = e.touches ? e.touches[0].clientX : e.clientX;
     const cY = e.touches ? e.touches[0].clientY : e.clientY;
-    const x = (cX - rect.left) / rect.width * canvas.width;
-    const y = (cY - rect.top) / rect.height * canvas.height + CAM.y;
+    const sx = (cX - rect.left) / rect.width * canvas.width;
+    const sy = (cY - rect.top) / rect.height * canvas.height;
+    const x = (sx - CAM.tx) / CAM.scale;                      // inverse camera transform
+    const y = (sy - CAM.ty) / CAM.scale;
     if (NET.mode === 'guest') { NET.queueTap(x, y); return; }   // guest: send to host
     performTap(M.p1, M.p2, x, y);
 }
@@ -749,7 +754,7 @@ function performTap(p1, p2, x, y) {
         const v = M.grapple.victim;
         const a = Math.atan2(y - v.y, x - v.x);
         v.vx = Math.cos(a) * 13; v.vy = Math.sin(a) * 8.5;
-        v.downTimer = 75;
+        v.downTimer = 75; v.fallFace = 'B';
         dealDamage(p1, v, 8, { text: 'THROWN!', slam: true });
         if (v.weapon) dropWeapon(v);
         M.grapple = null;
@@ -791,6 +796,12 @@ function performTap(p1, p2, x, y) {
 
 // ---------------- COMBAT CORE ----------------
 function dealDamage(attacker, victim, base, opts = {}) {
+    if (victim.climb) {                                     // struck on the ropes: crash down
+        victim.climb = null;
+        victim.downTimer = 80; victim.fallFace = 'B';
+        addFx(victim.x, victim.y - 30, 'CROTCHED!', { color: '#ff8c1a', size: 16 });
+        shake(5);
+    }
     // combo scaling (passive ticks don't build combos)
     if (!opts.noCombo) {
         attacker.combo = (attacker.comboTimer > 0) ? attacker.combo + 1 : 1;
@@ -822,7 +833,7 @@ function dealDamage(attacker, victim, base, opts = {}) {
     if (victim.health > 0 && victim.health < victim.maxHealth * 0.22 && dmg >= 4 &&
         victim.downTimer <= 0 && Math.random() < 0.25) {
         attacker.combo = 0; attacker.comboTimer = 0;   // knockdown ends the combo
-        victim.downTimer = 85;
+        victim.downTimer = 85; victim.fallFace = opts.slam ? 'B' : 'F';
         addFx(victim.x, victim.y + 18, 'DOWN!', { color: '#ff4455', size: 18 });
         Snd.slam(); shake(6);
     }
@@ -853,7 +864,7 @@ function tryStrike(att, def) {
                 addParticles(def.x, def.y, 10, 3, false);
                 att.weapon = null;
             }
-            if (wd.damage >= 15) { def.downTimer = 90; addFx(def.x, def.y + 18, 'DOWN!', { color: '#ff4455' }); Snd.slam(); }
+            if (wd.damage >= 15) { def.downTimer = 90; def.fallFace = 'F'; addFx(def.x, def.y + 18, 'DOWN!', { color: '#ff4455' }); Snd.slam(); }
         } else Snd.whoosh();
     } else {
         att.attackCooldown = 22;
@@ -872,7 +883,7 @@ function trySpecial(att, def) {
     att.swingTimer = 18;
     if (Math.abs(def.y - att.y) < 70 && Math.abs(def.x - att.x) < 150 && def.invuln <= 0) {
         att.specialCharge = 0;
-        def.downTimer = 120;
+        def.downTimer = 120; def.fallFace = 'B';
         def.vx = Math.sign(def.x - att.x) * 9;
         Snd.riser();
         dealDamage(att, def, 25, { text: att.wrestler.special + '!!!', color: '#ff2ea6', size: 22, slam: true, meterGain: 0 });
@@ -887,13 +898,62 @@ function trySpecial(att, def) {
 }
 
 // A button — Wrestling Revolution style context action
+function tryClimb(p) {
+    if (M.grapple || p.weapon || p.downTimer > 0 || p.stunTimer > 0 || isRingside(p)) return false;
+    const corners = [[matRect.L, matRect.T], [matRect.R, matRect.T], [matRect.L, matRect.B], [matRect.R, matRect.B]];
+    for (const [cx2, cy2] of corners) {
+        if (Math.hypot(p.x - cx2, p.y - cy2) < 62) {
+            p.climb = { x: cx2, y: cy2 };
+            p.x = cx2; p.y = cy2; p.vx = p.vy = 0; p.moving = false;
+            p.direction = cx2 < (matRect.L + matRect.R) / 2 ? 1 : -1;   // face into the ring
+            addFx(p.x, p.y - 60, 'CLIMB!', { color: '#66e0ff', size: 15 });
+            Snd.whoosh();
+            return true;
+        }
+    }
+    return false;
+}
+function launchDive(p, o) {
+    if (!p.climb) return;
+    p.climb = null;
+    p.diveTimer = 26;
+    const dx = o.x - p.x, dy = o.y - p.y;
+    const d = Math.max(60, Math.hypot(dx, dy));
+    const reach = Math.min(d, 340);                              // max dive distance
+    p.vx = dx / d * reach / 26; p.vy = dy / d * reach / 26;
+    p.direction = Math.sign(dx) || p.direction;
+    addFx(p.x, p.y - 70, 'TOP ROPE!', { color: '#ffdd00', size: 18 });
+    Snd.riser(); shake(3);
+}
+function resolveDive(p, o) {
+    p.diveTimer = 0; p.vx *= 0.2; p.vy *= 0.2;
+    const hit = o.downTimer <= 0 && o.invuln <= 0 && !o.climb &&
+                Math.abs(o.x - p.x) < 78 && Math.abs(o.y - p.y) < 60;
+    if (hit) {
+        o.downTimer = 95; o.fallFace = 'B';
+        o.vx = Math.sign(o.x - p.x || p.direction) * 5;
+        dealDamage(p, o, 16, { text: 'TOP ROPE DIVE!!', color: '#ffdd00', size: 21, slam: true, meterGain: 14 });
+        Snd.crowdPop(); shake(9);
+    } else {
+        p.stunTimer = 42;
+        addFx(p.x, p.y - 40, 'CRASHED!', { color: '#ff4455', size: 16 });
+        Snd.slam(); shake(6);
+        addParticles(p.x, p.y, 10, 3, false);
+    }
+}
 function performGrappleBtn(p, o, dir) {
+    // on the turnbuckle: A climbs back down
+    if (p.climb) {
+        p.climb = null;
+        addFx(p.x, p.y - 40, 'DOWN', { color: '#8899aa', size: 12 });
+        return;
+    }
     // holding a grapple: A throws in held direction (or slams in place)
     if (M.grapple && M.grapple.holder === p && !M.grapple.isPin) {
         const dx = dir.x || p.direction, dy = dir.y || 0;
         const d = Math.hypot(dx, dy) || 1;
         o.vx = dx / d * 13; o.vy = dy / d * 8;
-        o.downTimer = 75;
+        o.downTimer = 75; o.fallFace = 'B';
         dealDamage(p, o, 9, { text: dir.x || dir.y ? 'THROWN!' : 'SLAMMED!', slam: true });
         if (o.weapon) dropWeapon(o);
         M.grapple = null;
@@ -911,8 +971,8 @@ function performGrappleBtn(p, o, dir) {
         Snd.crowdPop();
         return;
     }
-    // tie-up a standing opponent
-    if (o.downTimer <= 0 && o.invuln <= 0 && adx < 80 && ady < 55) {
+    // tie-up a standing opponent (not one perched on the ropes)
+    if (o.downTimer <= 0 && o.invuln <= 0 && !o.climb && adx < 80 && ady < 55) {
         if (p.weapon) dropWeapon(p);
         p.direction = Math.sign(o.x - p.x) || p.direction;
         o.direction = -p.direction;                     // face each other
@@ -936,6 +996,7 @@ function performGrappleBtn(p, o, dir) {
             Snd.whoosh();
             return;
         }
+        tryClimb(p);                                       // nothing else in range: corner climb
     } else { dropWeapon(p); addFx(p.x, p.y - 20, 'DROPPED', { color: '#999', size: 12 }); }
 }
 
@@ -1064,7 +1125,7 @@ function simTick() {
             if (g.holder === p2 && g.frames > 45) {
                 const a = Math.random() * Math.PI * 2;
                 g.victim.vx = Math.cos(a) * 11; g.victim.vy = Math.sin(a) * 6;
-                g.victim.downTimer = 65;
+                g.victim.downTimer = 65; g.victim.fallFace = 'B';
                 dealDamage(p2, g.victim, 8, { text: 'THROWN!', slam: true });
                 M.grapple = null;
             }
@@ -1072,11 +1133,23 @@ function simTick() {
         }
     } else M.lastPinCount = 0;
 
+    // turnbuckle + dive states
+    for (const f of [p1, p2]) {
+        const foe = f === p1 ? p2 : p1;
+        if (f.climb) { f.x = f.climb.x; f.y = f.climb.y; f.vx = f.vy = 0; }
+        if (f.diveTimer > 0) {
+            f.diveTimer--;
+            f.invuln = Math.max(f.invuln, 2);
+            if (f.diveTimer === 0) resolveDive(f, foe);
+        }
+    }
+
     const p1Locked = M.grapple && (M.grapple.holder === p1 || M.grapple.victim === p1);
 
     // ---- P1 control ----
     p1.moving = false;
-    if (!p1Locked && p1.downTimer <= 0 && p1.stunTimer <= 0) {
+    if (p1.climb && input.dpad.y > 0) { p1.climb = null; }                 // step down off the ropes
+    if (!p1Locked && p1.downTimer <= 0 && p1.stunTimer <= 0 && !p1.climb && p1.diveTimer <= 0) {
         if (input.dpad.x !== 0) { p1.vx = input.dpad.x * 3.6 * p1.wrestler.speed; p1.direction = input.dpad.x; p1.moving = true; }
         else p1.vx *= 0.8;
         if (input.dpad.y !== 0) { p1.vy = input.dpad.y * 2.7 * p1.wrestler.speed; p1.moving = true; }
@@ -1091,13 +1164,14 @@ function simTick() {
         }
     }
 
-    if (input.attackTap && !p1Locked && p1.attackCooldown <= 0 && p1.downTimer <= 0) {
+    if (input.attackTap && p1.climb) { launchDive(p1, p2); input.attackTap = false; }
+    if (input.attackTap && !p1Locked && p1.attackCooldown <= 0 && p1.downTimer <= 0 && p1.diveTimer <= 0) {
         if (!tryStomp(p1, p2)) tryStrike(p1, p2);
     }
     if (input.grapTap && p1.downTimer <= 0 && (!p1Locked || (M.grapple && M.grapple.holder === p1))) {
         performGrappleBtn(p1, p2, input.dpad);
     }
-    if (input.specialTap && !p1Locked && p1.downTimer <= 0) trySpecial(p1, p2);
+    if (input.specialTap && !p1Locked && p1.downTimer <= 0 && !p1.climb && p1.diveTimer <= 0) trySpecial(p1, p2);
     input.attackTap = input.grapTap = input.specialTap = false;
 
     // ---- P2: AI offline, remote human online ----
@@ -1190,6 +1264,10 @@ function breakPin(g, text) {
 
 // ---------------- AI ----------------
 function aiUpdate(ai, target) {
+    // player on the turnbuckle: smarter AIs walk away from the dive
+    if (target.climb && ai.aiThink <= 0 && Math.random() < DIFF[M.difficulty].aggro * 0.5) {
+        ai.aiState = 'retreat'; ai.aiThink = 40;
+    }
     if (ai.downTimer > 0) { ai.downTimer--; ai.moving = false; return; }
     if (ai.stunTimer > 0) return;
     const locked = M.grapple && (M.grapple.victim === ai || M.grapple.holder === ai);
@@ -1301,13 +1379,13 @@ function aiStrike(ai, target, wd) {
         (Snd[wd.sfx === 'guitar' ? 'guitarSmash' : wd.sfx] || Snd.whack)();
         ai.weapon.durability--;
         if (ai.weapon.durability <= 0) ai.weapon = null;
-        if (wd.damage >= 15) { target.downTimer = 80; Snd.slam(); }
+        if (wd.damage >= 15) { target.downTimer = 80; target.fallFace = 'F'; Snd.slam(); }
     } else Snd.punch();
 }
 function trySpecialAI(ai, target) {
     ai.specialCharge = 0;
     ai.swingTimer = 18;
-    target.downTimer = 110;
+    target.downTimer = 110; target.fallFace = 'B';
     target.vx = Math.sign(target.x - ai.x) * 8;
     Snd.riser();
     dealDamage(ai, target, 20, { text: ai.wrestler.special + '!!!', color: '#ff2ea6', size: 20, slam: true, meterGain: 0 });
@@ -1320,7 +1398,8 @@ function applyRemote(p, opp) {
     const inp = NET.remote;
     const locked = M.grapple && (M.grapple.holder === p || M.grapple.victim === p);
     p.moving = false;
-    if (!locked && p.downTimer <= 0 && p.stunTimer <= 0) {
+    if (p.climb && inp.dy > 0) p.climb = null;
+    if (!locked && p.downTimer <= 0 && p.stunTimer <= 0 && !p.climb && p.diveTimer <= 0) {
         if (inp.dx !== 0) { p.vx = inp.dx * 3.6 * p.wrestler.speed; p.direction = inp.dx; p.moving = true; }
         else p.vx *= 0.8;
         if (inp.dy !== 0) { p.vy = inp.dy * 2.7 * p.wrestler.speed; p.moving = true; }
@@ -1340,7 +1419,8 @@ function applyRemote(p, opp) {
         inp.attack = false;
         if (M.grapple.escape >= 3) { M.grapple = null; addFx(p.x, p.y, 'ESCAPE!', { color: '#66aaff' }); }
     }
-    if (inp.attack && !locked && p.attackCooldown <= 0 && p.downTimer <= 0) {
+    if (inp.attack && p.climb) { launchDive(p, opp); inp.attack = false; }
+    if (inp.attack && !locked && p.attackCooldown <= 0 && p.downTimer <= 0 && p.diveTimer <= 0) {
         if (!tryStomp(p, opp)) tryStrike(p, opp);
     }
     if (inp.grap && p.downTimer <= 0 && (!locked || (M.grapple && M.grapple.holder === p))) {
@@ -1525,7 +1605,8 @@ const NET = {
         return [ +this.nx(p.x).toFixed(3), +this.ny(p.y).toFixed(3), p.direction,
                  Math.round(p.health), p.downTimer, p.swingTimer, +p.elev.toFixed(2),
                  p.weapon ? p.weapon.type : '', p.weapon ? p.weapon.durability : 0,
-                 p.moving ? 1 : 0, p.jumpTimer, Math.round(p.specialCharge), p.combo ];
+                 p.moving ? 1 : 0, p.jumpTimer, Math.round(p.specialCharge), p.combo,
+                 p.climb ? 1 : 0, p.diveTimer, p.fallFace === 'F' ? 1 : 0, p.stunTimer ];
     },
     sendSnap() {
         if (this.mode !== 'host' || !this.roomRef || M.phase === 'idle') return;
@@ -1556,6 +1637,10 @@ const NET = {
         p.moving = !!arr[9];
         if (p.moving) p.walkAnim += 0.15;
         p.jumpTimer = arr[10]; p.specialCharge = arr[11]; p.combo = arr[12];
+        p.climb = arr[13] ? { x: p.x, y: p.y } : null;
+        p.diveTimer = arr[14] || 0;
+        p.fallFace = arr[15] ? 'F' : 'B';
+        p.stunTimer = arr[16] || 0;
     },
     guestApply() {
         if (this.mode !== 'guest' || !this.snapNext) return;
@@ -1733,15 +1818,37 @@ function drawHUD() {
 function spriteFor(f) {
     const S = SPRITES[f.wrestler.id];
     if (!S) return null;
-    if (M.grapple && M.grapple.isPin && M.grapple.victim === f) return S.fallen;
-    if (f.downTimer > 0) return S.fallen;
-    if (f.swingTimer > 0) {
-        const fr = S.elbowR;
-        return fr[Math.min(fr.length - 1, Math.floor((18 - f.swingTimer) / 6))];
+    const pinned = M.grapple && M.grapple.isPin && M.grapple.victim === f;
+    if (f.climb) return { img: S.aIdleB || S.idle, flip: false };                     // back to camera on the ropes
+    if (f.diveTimer > 0) return { img: (S.aDive && S.aDive[0]) || S.jump, flip: f.direction > 0, noHeld: true };
+    if (pinned || f.downTimer > 0) {
+        if (!pinned && f.downTimer > 0 && f.downTimer <= 26 && S.aGetup)              // rising animation
+            return { img: S.aGetup[Math.min(2, Math.floor((26 - f.downTimer) / 9))], flip: f.direction < 0 };
+        const fb = f.fallFace === 'F' ? (S.aFallF || S.fallen) : (S.aFallB || S.fallen);
+        return { img: fb, flip: f.direction < 0 };
     }
-    if (f.jumpTimer > 0) return S.jump;
-    if (f.moving) return S.walkR[Math.floor(f.walkAnim) % S.walkR.length];
-    return S.idle;
+    if (f.stunTimer > 0 && S.aStagger) return { img: S.aStagger, flip: false };
+    if (f.swingTimer > 0) {
+        const idx = Math.min(2, Math.floor((18 - f.swingTimer) / 6));
+        if (f.weapon) {                                                               // weapon-specific swing frames
+            const t = f.weapon.type;
+            if (t === 'chair' && S.aChairR) return { img: S.aChairR[idx], flip: f.direction < 0, noHeld: true };
+            if (t === 'kendo' && S.aKendoR && S.aKendoL)
+                return { img: (f.direction < 0 ? S.aKendoL : S.aKendoR)[idx], flip: false, noHeld: true };
+            if (t === 'belt' && S.aBeltR) return { img: S.aBeltR[idx], flip: f.direction < 0, noHeld: true };
+        }
+        if (S.aElbowL && S.aElbowR) return { img: (f.direction < 0 ? S.aElbowL : S.aElbowR)[idx], flip: false };
+        const fr = S.elbowR;
+        return { img: fr[Math.min(fr.length - 1, idx)], flip: f.direction < 0 };
+    }
+    if (f.jumpTimer > 0) return { img: S.jump, flip: f.direction < 0 };
+    if (f.moving) {
+        const fast = Math.hypot(f.vx, f.vy) > 3.3;
+        const L = fast ? (S.aRunL || S.aWalkL) : S.aWalkL, R = fast ? (S.aRunR || S.aWalkR) : S.aWalkR;
+        if (L && R) return { img: (f.direction < 0 ? L : R)[Math.floor(f.walkAnim) % 4], flip: false };
+        return { img: S.walkR[Math.floor(f.walkAnim) % S.walkR.length], flip: f.direction < 0 };
+    }
+    return { img: S.aIdle || S.idle, flip: false };
 }
 
 function render() {
@@ -1753,13 +1860,31 @@ function render() {
     } else M.shake = 0;
 
     computeRects();
-    // camera pan: follow the brawl to ringside
-    const anyOut = (M.p1 && isRingside(M.p1)) || (M.p2 && isRingside(M.p2));
-    const panMax = Math.max(0, (floorRect.B + 70 + ringDrop()) - (canvas.height - 200));
-    const panTarget = anyOut ? panMax : 0;
-    CAM.y += (panTarget - CAM.y) * 0.06;
+    // ---- follow camera: tracks the local player with a bias toward the action midpoint ----
+    if (M.p1 && M.p2) {
+        const me = NET.mode === 'guest' ? M.p2 : M.p1, other = me === M.p1 ? M.p2 : M.p1;
+        const wy = (f) => f.y + (isRingside(f) ? ringDrop() : 0) - 30;
+        const midX = (me.x + other.x) / 2, midY = (wy(me) + wy(other)) / 2;
+        const fx = me.x * 0.65 + midX * 0.35, fy = wy(me) * 0.65 + midY * 0.35;
+        const dist = Math.hypot(me.x - other.x, wy(me) - wy(other));
+        const tScale = Math.max(1.05, Math.min(1.32, 1.42 - dist / (canvas.width * 0.85)));
+        if (!CAM.init) { CAM.fx = fx; CAM.fy = fy; CAM.scale = tScale; CAM.init = true; }
+        CAM.fx += (fx - CAM.fx) * 0.08;
+        CAM.fy += (fy - CAM.fy) * 0.08;
+        CAM.scale += (tScale - CAM.scale) * 0.04;
+        const s = CAM.scale;
+        let tx = canvas.width / 2 - CAM.fx * s;
+        let ty = canvas.height * 0.52 - CAM.fy * s;
+        // clamp: never show past the arena edges (small pad; black backfill covers slack)
+        const padT = 14, padX = 24;
+        const worldBottom = Math.max(canvas.height, floorRect.B + ringDrop() + 95);   // ringside floor extends below the arena base
+        tx = Math.min(padX * s, Math.max(canvas.width - (canvas.width + padX) * s, tx));
+        ty = Math.min(padT * s, Math.max(canvas.height - worldBottom * s, ty));
+        CAM.tx = tx; CAM.ty = ty;
+    } else { CAM.tx = 0; CAM.ty = 0; CAM.scale = 1; }
     ctx.save();
-    ctx.translate(0, -CAM.y);
+    ctx.translate(CAM.tx, CAM.ty);
+    ctx.scale(CAM.scale, CAM.scale);
 
     // 1. arena (zoomed on the ring; backfill exposed edges)
     ctx.fillStyle = '#0a0a0a';
@@ -1853,9 +1978,12 @@ function render() {
 }
 
 function drawFighter(f) {
-    const img = spriteFor(f);
+    const sp = spriteFor(f);
+    const img = sp && sp.img;
     const dropY = f.elev * ringDrop();
-    const jumpArc = f.jumpTimer > 0 ? Math.sin((30 - f.jumpTimer) / 30 * Math.PI) * 30 : 0;
+    let jumpArc = f.jumpTimer > 0 ? Math.sin((30 - f.jumpTimer) / 30 * Math.PI) * 30 : 0;
+    if (f.climb) jumpArc = 42;                                                    // perched on the turnbuckle
+    if (f.diveTimer > 0) jumpArc = Math.sin(f.diveTimer / 26 * Math.PI) * 62;     // flight arc
     const feetY = f.y + 52 + dropY;
     const matH = matRect.B - matRect.T;
     const depth = (f.y - matRect.T) / Math.max(1, matH);
@@ -1880,8 +2008,7 @@ function drawFighter(f) {
         const targetH = baseH * depthScale;
         const scale = targetH / img.naturalHeight;
         const w = img.naturalWidth * scale, h = targetH;
-        const S = SPRITES[f.wrestler.id];
-        const flip = f.direction < 0 && img !== S.idle;
+        const flip = !!sp.flip;
         const drawY = feetY - h - jumpArc;
 
         // motion trail on fast bodies (throws, specials)
@@ -1908,8 +2035,8 @@ function drawFighter(f) {
         else ctx.drawImage(img, f.x - w / 2, py, w, ph);
         ctx.restore();
 
-        // weapon in hand: grip pivot, wind-up swing arc
-        if (f.weapon && f.downTimer <= 0) {
+        // weapon in hand: grip pivot, wind-up swing arc (skipped when the swing sprite draws the weapon)
+        if (f.weapon && f.downTimer <= 0 && !sp.noHeld && !f.climb) {
             const prog = f.swingTimer > 0 ? (18 - f.swingTimer) / 18 : -1;
             const rot = prog < 0 ? f.direction * 0.22
                                  : f.direction * (-0.7 + prog * 2.1);
