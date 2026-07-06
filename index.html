@@ -661,7 +661,7 @@ function showVictory() {
 
 // ---------------- GEOMETRY ----------------
 let coverTf = { dx:0, dy:0, dw:1, dh:1 };
-let CAM = { y: 0, x: 0, fy: 0, z: 1, init: false };   // pan + follow-cam (tracks the fighters)
+let CAM = { y: 0 };   // vertical camera pan (follows ringside brawls)
 function computeRects() {
     // RING-DOMINANT CAMERA (Wrestling Revolution framing): the mat IS the playfield
     const iw = ARENA.naturalWidth || 1672, ih = ARENA.naturalHeight || 941;
@@ -1760,25 +1760,6 @@ function render() {
     CAM.y += (panTarget - CAM.y) * 0.06;
     ctx.save();
     ctx.translate(0, -CAM.y);
-
-    // FOLLOW CAMERA: track the fighters' midpoint, zoom to keep both framed
-    let fx = canvas.width / 2, fy = canvas.height / 2, tz = 1;
-    if (M.p1 && M.p2) {
-        fx = (M.p1.x + M.p2.x) / 2;
-        fy = (M.p1.y + M.p2.y) / 2 - 70;
-        const spread = Math.abs(M.p1.x - M.p2.x) + 430;   // margin keeps both + breathing room
-        tz = Math.min(1.5, Math.max(1, canvas.width / spread));
-    }
-    if (!CAM.init) { CAM.x = fx; CAM.fy = fy; CAM.init = true; }
-    CAM.z  += (tz - CAM.z) * 0.06;
-    CAM.x  += (fx - CAM.x) * 0.08;
-    CAM.fy += (fy - CAM.fy) * 0.08;
-    const vz = CAM.z, vw = canvas.width / vz, vh = canvas.height / vz;
-    const ccx = Math.max(vw / 2, Math.min(canvas.width  - vw / 2, CAM.x));
-    const ccy = Math.max(vh / 2, Math.min(canvas.height - vh / 2, CAM.fy));
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.scale(vz, vz);
-    ctx.translate(-ccx, -ccy);
 
     // 1. arena (zoomed on the ring; backfill exposed edges)
     ctx.fillStyle = '#0a0a0a';
