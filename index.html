@@ -1768,7 +1768,7 @@ function drawHUD() {
 
         // name + combo + weapon
         ctx.font = `900 ${mobile ? 10 : 13}px Arial`; ctx.textAlign = rightSide ? 'right' : 'left';
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = '#d6d6d6';
         ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
         const nx = rightSide ? bx + barW : bx;
         ctx.strokeText(p.wrestler.name.toUpperCase(), nx, by + barH + 16);
@@ -1808,7 +1808,7 @@ function drawHUD() {
     sg2.addColorStop(0, '#ffdd00'); sg2.addColorStop(1, '#ff8c00');
     ctx.fillStyle = sg2;
     ctx.fillRect(sx, sy, sw * me.specialCharge / 100, sh);
-    ctx.font = '900 10px Arial'; ctx.textAlign = 'right'; ctx.fillStyle = ready ? '#fff' : '#aaa';
+    ctx.font = '900 10px Arial'; ctx.textAlign = 'right'; ctx.fillStyle = ready ? '#d6d6d6' : '#8e8e8e';
     ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5;
     const label = ready ? '★ SPECIAL READY — Y ★' : 'SPECIAL';
     ctx.strokeText(label, sx + sw, sy - 8);
@@ -1864,7 +1864,6 @@ function spriteFor(f) {
         if (L && R) return { img: (f.direction < 0 ? L : R)[Math.floor(f.walkAnim) % 4], flip: false };
         return { img: S.walkR[Math.floor(f.walkAnim) % S.walkR.length], flip: f.direction < 0 };
     }
-    if (S.aReady) return { img: S.aReady, flip: f.direction < 0 };                   // squared-up fight stance
     return { img: S.aIdle || S.idle, flip: false };
 }
 
@@ -1877,34 +1876,16 @@ function render() {
     } else M.shake = 0;
 
     computeRects();
-    // ---- fight camera: keeps both wrestlers framed, follows the action smoothly ----
+    // ---- camera: fully zoomed out, whole arena in view; pans down only for ringside brawls ----
     if (M.p1 && M.p2) {
-        const me = NET.mode === 'guest' ? M.p2 : M.p1, other = me === M.p1 ? M.p2 : M.p1;
-        const wy = (f) => f.y + (isRingside(f) ? ringDrop() : 0) - 34;
-        // focus: action midpoint with a light bias toward the player
-        const fx = (me.x + other.x) / 2 * 0.8 + me.x * 0.2;
-        const fy = (wy(me) + wy(other)) / 2 * 0.8 + wy(me) * 0.2;
-        // zoom: tight on the action, pulling back only as far as needed to keep both framed
-        const needW = Math.abs(me.x - other.x) / 2 + canvas.width * 0.185;
-        const needH = Math.abs(wy(me) - wy(other)) / 2 + canvas.height * 0.26;
-        const fit = Math.min(canvas.width / (2 * needW), canvas.height / (2 * needH));
-        const tScale = Math.max(1.12, Math.min(1.72, fit));
-        if (!CAM.init) { CAM.fx = fx; CAM.fy = fy; CAM.scale = tScale; CAM.init = true; }
-        // soft deadzone: ignore tiny shuffles, ease into real movement
-        const ddx = fx - CAM.fx, ddy = fy - CAM.fy;
-        const dd = Math.hypot(ddx, ddy);
-        const ease = dd > 1 ? Math.max(0, (dd - 9) / dd) : 0;
-        CAM.fx += ddx * ease * 0.12;
-        CAM.fy += ddy * ease * 0.12;
-        CAM.scale += (tScale - CAM.scale) * 0.035;          // slow zoom drift: no pumping
-        const s = CAM.scale;
-        let tx = canvas.width / 2 - CAM.fx * s;
-        let ty = canvas.height * 0.50 - CAM.fy * s;
-        const padT = 14, padX = 24;
-        const worldBottom = Math.max(canvas.height, floorRect.B + ringDrop() + 95);
-        tx = Math.min(padX * s, Math.max(canvas.width - (canvas.width + padX) * s, tx));
-        ty = Math.min(padT * s, Math.max(canvas.height - worldBottom * s, ty));
-        CAM.tx = tx; CAM.ty = ty;
+        CAM.scale = 1;
+        CAM.tx = 0;
+        const anyOut = isRingside(M.p1) || isRingside(M.p2);
+        const worldBottom = floorRect.B + ringDrop() + 95;
+        const panMax = Math.max(0, worldBottom - canvas.height);
+        const target = anyOut ? -panMax : 0;
+        if (!CAM.init) { CAM.ty = target; CAM.init = true; }
+        CAM.ty += (target - CAM.ty) * 0.06;
     } else { CAM.tx = 0; CAM.ty = 0; CAM.scale = 1; }
     ctx.save();
     ctx.translate(CAM.tx, CAM.ty);
@@ -2025,12 +2006,13 @@ function drawFighter(f) {
     ctx.beginPath(); ctx.ellipse(f.x, feetY, 34 * depthScale, 10 * depthScale, 0, 0, Math.PI * 2); ctx.stroke();
 
     if (img && img.complete && img.naturalWidth) {
-        const S0 = SPRITES[f.wrestler.id];
-        const refImg = (S0.aIdle && S0.aIdle.complete && S0.aIdle.naturalHeight) ? S0.aIdle : img;
-        const standH = Math.max(88, Math.min(matH * 0.52, canvas.height * 0.23));   // standing height of the idle pose
-        const k = standH * depthScale / refImg.naturalHeight;                        // ONE scale per wrestler
-        const w = img.naturalWidth * k, h = img.naturalHeight * k;                   // every pose keeps true proportions
-        const targetH = h;
+        const isDown = f.downTimer > 0 || (M.grapple && M.grapple.isPin && M.grapple.victim === f);
+        const baseH = isDown
+            ? Math.max(50, Math.min(matH * 0.24, canvas.height * 0.11))
+            : Math.max(88, Math.min(matH * 0.52, canvas.height * 0.23));
+        const targetH = baseH * depthScale;
+        const scale = targetH / img.naturalHeight;
+        const w = img.naturalWidth * scale, h = targetH;
         const flip = !!sp.flip;
         const drawY = feetY - h - jumpArc;
 
