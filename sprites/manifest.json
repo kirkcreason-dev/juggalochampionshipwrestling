@@ -256,7 +256,76 @@
    {
     "file": "sprites/bruce/a_beltR_2.png"
    }
-  ]
+  ],
+  "aCrouch": {
+   "file": "sprites/bruce/a_crouch_0.png"
+  },
+  "aWin": {
+   "file": "sprites/bruce/a_winPose_0.png"
+  },
+  "aLose": {
+   "file": "sprites/bruce/a_losePose_0.png"
+  },
+  "aBeltL": [
+   {
+    "file": "sprites/bruce/a_beltL_0.png"
+   },
+   {
+    "file": "sprites/bruce/a_beltL_1.png"
+   }
+  ],
+  "aJump": [
+   {
+    "file": "sprites/bruce/a_jump_0.png"
+   },
+   {
+    "file": "sprites/bruce/a_jump_1.png"
+   },
+   {
+    "file": "sprites/bruce/a_jump_2.png"
+   },
+   {
+    "file": "sprites/bruce/a_jump_3.png"
+   }
+  ],
+  "aPunchL": [
+   {
+    "file": "sprites/bruce/a_punchL_0.png"
+   },
+   {
+    "file": "sprites/bruce/a_punchL_1.png"
+   },
+   {
+    "file": "sprites/bruce/a_punchL_2.png"
+   }
+  ],
+  "aPunchR": [
+   {
+    "file": "sprites/bruce/a_punchR_0.png"
+   },
+   {
+    "file": "sprites/bruce/a_punchR_1.png"
+   }
+  ],
+  "aKickL": [
+   {
+    "file": "sprites/bruce/a_kickL_0.png"
+   },
+   {
+    "file": "sprites/bruce/a_kickL_1.png"
+   }
+  ],
+  "aKickR": [
+   {
+    "file": "sprites/bruce/a_kickR_0.png"
+   },
+   {
+    "file": "sprites/bruce/a_kickR_1.png"
+   }
+  ],
+  "aReady": {
+   "file": "sprites/bruce/a_ready_0.png"
+  }
  },
  "atiba": {
   "idle": {
@@ -515,7 +584,76 @@
    {
     "file": "sprites/atiba/a_beltR_2.png"
    }
-  ]
+  ],
+  "aCrouch": {
+   "file": "sprites/atiba/a_crouch_0.png"
+  },
+  "aWin": {
+   "file": "sprites/atiba/a_winPose_0.png"
+  },
+  "aLose": {
+   "file": "sprites/atiba/a_losePose_0.png"
+  },
+  "aBeltL": [
+   {
+    "file": "sprites/atiba/a_beltL_0.png"
+   },
+   {
+    "file": "sprites/atiba/a_beltL_1.png"
+   }
+  ],
+  "aJump": [
+   {
+    "file": "sprites/atiba/a_jump_0.png"
+   },
+   {
+    "file": "sprites/atiba/a_jump_1.png"
+   },
+   {
+    "file": "sprites/atiba/a_jump_2.png"
+   },
+   {
+    "file": "sprites/atiba/a_jump_3.png"
+   }
+  ],
+  "aPunchL": [
+   {
+    "file": "sprites/atiba/a_punchL_0.png"
+   },
+   {
+    "file": "sprites/atiba/a_punchL_1.png"
+   },
+   {
+    "file": "sprites/atiba/a_punchL_2.png"
+   }
+  ],
+  "aPunchR": [
+   {
+    "file": "sprites/atiba/a_punchR_0.png"
+   },
+   {
+    "file": "sprites/atiba/a_punchR_1.png"
+   }
+  ],
+  "aKickL": [
+   {
+    "file": "sprites/atiba/a_kickL_0.png"
+   },
+   {
+    "file": "sprites/atiba/a_kickL_1.png"
+   }
+  ],
+  "aKickR": [
+   {
+    "file": "sprites/atiba/a_kickR_0.png"
+   },
+   {
+    "file": "sprites/atiba/a_kickR_1.png"
+   }
+  ],
+  "aReady": {
+   "file": "sprites/atiba/a_ready_0.png"
+  }
  },
  "bishop": {
   "idle": {
@@ -774,7 +912,76 @@
    {
     "file": "sprites/bishop/a_beltR_2.png"
    }
-  ]
+  ],
+  "aCrouch": {
+   "file": "sprites/bishop/a_crouch_0.png"
+  },
+  "aWin": {
+   "file": "sprites/bishop/a_winPose_0.png"
+  },
+  "aLose": {
+   "file": "sprites/bishop/a_losePose_0.png"
+  },
+  "aBeltL": [
+   {
+    "file": "sprites/bishop/a_beltL_0.png"
+   },
+   {
+    "file": "sprites/bishop/a_beltL_1.png"
+   }
+  ],
+  "aJump": [
+   {
+    "file": "sprites/bishop/a_jump_0.png"
+   },
+   {
+    "file": "sprites/bishop/a_jump_1.png"
+   },
+   {
+    "file": "sprites/bishop/a_jump_2.png"
+   },
+   {
+    "file": "sprites/bishop/a_jump_3.png"
+   }
+  ],
+  "aPunchL": [
+   {
+    "file": "sprites/bishop/a_punchL_0.png"
+   },
+   {
+    "file": "sprites/bishop/a_punchL_1.png"
+   },
+   {
+    "file": "sprites/bishop/a_punchL_2.png"
+   }
+  ],
+  "aPunchR": [
+   {
+    "file": "sprites/bishop/a_punchR_0.png"
+   },
+   {
+    "file": "sprites/bishop/a_punchR_1.png"
+   }
+  ],
+  "aKickL": [
+   {
+    "file": "sprites/bishop/a_kickL_0.png"
+   },
+   {
+    "file": "sprites/bishop/a_kickL_1.png"
+   }
+  ],
+  "aKickR": [
+   {
+    "file": "sprites/bishop/a_kickR_0.png"
+   },
+   {
+    "file": "sprites/bishop/a_kickR_1.png"
+   }
+  ],
+  "aReady": {
+   "file": "sprites/bishop/a_ready_0.png"
+  }
  },
  "bronson": {
   "idle": {
@@ -1033,7 +1240,76 @@
    {
     "file": "sprites/bronson/a_beltR_2.png"
    }
-  ]
+  ],
+  "aCrouch": {
+   "file": "sprites/bronson/a_crouch_0.png"
+  },
+  "aWin": {
+   "file": "sprites/bronson/a_winPose_0.png"
+  },
+  "aLose": {
+   "file": "sprites/bronson/a_losePose_0.png"
+  },
+  "aBeltL": [
+   {
+    "file": "sprites/bronson/a_beltL_0.png"
+   },
+   {
+    "file": "sprites/bronson/a_beltL_1.png"
+   }
+  ],
+  "aJump": [
+   {
+    "file": "sprites/bronson/a_jump_0.png"
+   },
+   {
+    "file": "sprites/bronson/a_jump_1.png"
+   },
+   {
+    "file": "sprites/bronson/a_jump_2.png"
+   },
+   {
+    "file": "sprites/bronson/a_jump_3.png"
+   }
+  ],
+  "aPunchL": [
+   {
+    "file": "sprites/bronson/a_punchL_0.png"
+   },
+   {
+    "file": "sprites/bronson/a_punchL_1.png"
+   },
+   {
+    "file": "sprites/bronson/a_punchL_2.png"
+   }
+  ],
+  "aPunchR": [
+   {
+    "file": "sprites/bronson/a_punchR_0.png"
+   },
+   {
+    "file": "sprites/bronson/a_punchR_1.png"
+   }
+  ],
+  "aKickL": [
+   {
+    "file": "sprites/bronson/a_kickL_0.png"
+   },
+   {
+    "file": "sprites/bronson/a_kickL_1.png"
+   }
+  ],
+  "aKickR": [
+   {
+    "file": "sprites/bronson/a_kickR_0.png"
+   },
+   {
+    "file": "sprites/bronson/a_kickR_1.png"
+   }
+  ],
+  "aReady": {
+   "file": "sprites/bronson/a_ready_0.png"
+  }
  },
  "dani": {
   "idle": {
@@ -1292,7 +1568,76 @@
    {
     "file": "sprites/dani/a_beltR_2.png"
    }
-  ]
+  ],
+  "aCrouch": {
+   "file": "sprites/dani/a_crouch_0.png"
+  },
+  "aWin": {
+   "file": "sprites/dani/a_winPose_0.png"
+  },
+  "aLose": {
+   "file": "sprites/dani/a_losePose_0.png"
+  },
+  "aBeltL": [
+   {
+    "file": "sprites/dani/a_beltL_0.png"
+   },
+   {
+    "file": "sprites/dani/a_beltL_1.png"
+   }
+  ],
+  "aJump": [
+   {
+    "file": "sprites/dani/a_jump_0.png"
+   },
+   {
+    "file": "sprites/dani/a_jump_1.png"
+   },
+   {
+    "file": "sprites/dani/a_jump_2.png"
+   },
+   {
+    "file": "sprites/dani/a_jump_3.png"
+   }
+  ],
+  "aPunchL": [
+   {
+    "file": "sprites/dani/a_punchL_0.png"
+   },
+   {
+    "file": "sprites/dani/a_punchL_1.png"
+   },
+   {
+    "file": "sprites/dani/a_punchL_2.png"
+   }
+  ],
+  "aPunchR": [
+   {
+    "file": "sprites/dani/a_punchR_0.png"
+   },
+   {
+    "file": "sprites/dani/a_punchR_1.png"
+   }
+  ],
+  "aKickL": [
+   {
+    "file": "sprites/dani/a_kickL_0.png"
+   },
+   {
+    "file": "sprites/dani/a_kickL_1.png"
+   }
+  ],
+  "aKickR": [
+   {
+    "file": "sprites/dani/a_kickR_0.png"
+   },
+   {
+    "file": "sprites/dani/a_kickR_1.png"
+   }
+  ],
+  "aReady": {
+   "file": "sprites/dani/a_ready_0.png"
+  }
  },
  "caleb": {
   "idle": {
@@ -1551,6 +1896,78 @@
    {
     "file": "sprites/caleb/a_beltR_2.png"
    }
-  ]
+  ],
+  "aCrouch": {
+   "file": "sprites/caleb/a_crouch_0.png"
+  },
+  "aWin": {
+   "file": "sprites/caleb/a_winPose_0.png"
+  },
+  "aLose": {
+   "file": "sprites/caleb/a_losePose_0.png"
+  },
+  "aBeltL": [
+   {
+    "file": "sprites/caleb/a_beltL_0.png"
+   },
+   {
+    "file": "sprites/caleb/a_beltL_1.png"
+   }
+  ],
+  "aJump": [
+   {
+    "file": "sprites/caleb/a_jump_0.png"
+   },
+   {
+    "file": "sprites/caleb/a_jump_1.png"
+   },
+   {
+    "file": "sprites/caleb/a_jump_2.png"
+   },
+   {
+    "file": "sprites/caleb/a_jump_3.png"
+   }
+  ],
+  "aPunchL": [
+   {
+    "file": "sprites/caleb/a_punchL_0.png"
+   },
+   {
+    "file": "sprites/caleb/a_punchL_1.png"
+   },
+   {
+    "file": "sprites/caleb/a_punchL_2.png"
+   }
+  ],
+  "aPunchR": [
+   {
+    "file": "sprites/caleb/a_punchR_0.png"
+   },
+   {
+    "file": "sprites/caleb/a_punchR_1.png"
+   }
+  ],
+  "aKickL": [
+   {
+    "file": "sprites/caleb/a_kickL_0.png"
+   },
+   {
+    "file": "sprites/caleb/a_kickL_1.png"
+   }
+  ],
+  "aKickR": [
+   {
+    "file": "sprites/caleb/a_kickR_0.png"
+   },
+   {
+    "file": "sprites/caleb/a_kickR_1.png"
+   },
+   {
+    "file": "sprites/caleb/a_kickR_2.png"
+   }
+  ],
+  "aReady": {
+   "file": "sprites/caleb/a_ready_0.png"
+  }
  }
 }
