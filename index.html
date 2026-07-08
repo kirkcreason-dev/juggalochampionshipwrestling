@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>JCW Lunacy</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 body { background:#0a0a0a; font-family:Arial,sans-serif; overflow:hidden; height:100vh; }
@@ -251,6 +254,7 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
 </div>
 
 <script>
+console.log('%cJCW LUNACY — BUILD 2026-07-07-CAM-FULLVIEW', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -666,26 +670,22 @@ function showVictory() {
 let coverTf = { dx:0, dy:0, dw:1, dh:1 };
 let CAM = { fx: 0, fy: 0, scale: 1.12, tx: 0, ty: 0, init: false };   // follow camera (tracks the player)
 function computeRects() {
-    // RING-DOMINANT CAMERA (Wrestling Revolution framing): the mat IS the playfield
+    // WHOLE-LEVEL VIEW: contain-fit the full arena image — nothing off-screen, ever
     const iw = ARENA.naturalWidth || 1672, ih = ARENA.naturalHeight || 941;
     const mt = activeStage.mat;
-    const mobile = canvas.width < 640;
-    const safeT = 96, safeB = canvas.height - 210;
-    const usableH = safeB - safeT;
-    const scaleW = (canvas.width * (mobile ? 0.88 : 0.80)) / ((mt.x1 - mt.x0) * iw);
-    const scaleH = (usableH * 0.80) / ((mt.y1 - mt.y0) * ih);
-    const scale = Math.min(scaleW, scaleH);
+    const scale = Math.min(canvas.width / iw, canvas.height / ih);
     const dw = iw * scale, dh = ih * scale;
-    const dx = canvas.width / 2 - (mt.x0 + mt.x1) / 2 * dw;
-    const matHvis = (mt.y1 - mt.y0) * dh;
-    const dy = (safeT + Math.max(0, (usableH - matHvis) * 0.30)) - mt.y0 * dh;
+    const dx = (canvas.width - dw) / 2;
+    const dy = (canvas.height - dh) / 2;
     coverTf = { dx, dy, dw, dh };
     matRect = { L: dx + mt.x0 * dw, R: dx + mt.x1 * dw, T: dy + mt.y0 * dh, B: dy + mt.y1 * dh };
-    // floor: exit through the FRONT (camera pans down to follow)
+    // ringside floor in front of the ring, clamped fully on-screen
+    const drop = Math.max(34, Math.min(84, (matRect.B - matRect.T) * 0.22));
     floorRect = {
         L: Math.max(10, matRect.L - 60), R: Math.min(canvas.width - 10, matRect.R + 60),
         T: matRect.T,
-        B: matRect.B + Math.min(130, (matRect.B - matRect.T) * 0.42)
+        B: Math.min(matRect.B + Math.min(130, (matRect.B - matRect.T) * 0.42),
+                    canvas.height - drop - 14)
     };
 }
 function ringDrop() { return Math.max(34, Math.min(84, (matRect.B - matRect.T) * 0.22)); }
@@ -1876,17 +1876,8 @@ function render() {
     } else M.shake = 0;
 
     computeRects();
-    // ---- camera: fully zoomed out, whole arena in view; pans down only for ringside brawls ----
-    if (M.p1 && M.p2) {
-        CAM.scale = 1;
-        CAM.tx = 0;
-        const anyOut = isRingside(M.p1) || isRingside(M.p2);
-        const worldBottom = floorRect.B + ringDrop() + 95;
-        const panMax = Math.max(0, worldBottom - canvas.height);
-        const target = anyOut ? -panMax : 0;
-        if (!CAM.init) { CAM.ty = target; CAM.init = true; }
-        CAM.ty += (target - CAM.ty) * 0.06;
-    } else { CAM.tx = 0; CAM.ty = 0; CAM.scale = 1; }
+    // ---- static camera: the whole level is on screen, nothing moves ----
+    CAM.tx = 0; CAM.ty = 0; CAM.scale = 1;
     ctx.save();
     ctx.translate(CAM.tx, CAM.ty);
     ctx.scale(CAM.scale, CAM.scale);
