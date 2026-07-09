@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>JCW Lunacy</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 body { background:#0a0a0a; font-family:Arial,sans-serif; overflow:hidden; height:100vh; }
@@ -165,47 +168,6 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
         <canvas id="gameCanvas"></canvas>
         <div class="hud">
             
-            
-            <div id="p2Name" style="color:#4488ff;">P2: SELECT</div>
-        </div>
-        <div class="roster-grid" id="rosterGrid"></div>
-        <div class="stage-row" style="max-width:540px;">
-            <div class="stage-thumb diff sel" onclick="setDiff(0)"><div class="stage-rand" style="font-size:15px;color:#8dff1e;">EASY</div><span>CHILL</span></div>
-            <div class="stage-thumb diff" onclick="setDiff(1)"><div class="stage-rand" style="font-size:15px;color:#ffcc33;">NORMAL</div><span>FIGHT</span></div>
-            <div class="stage-thumb diff" onclick="setDiff(2)"><div class="stage-rand" style="font-size:15px;color:#ff2255;">HARD</div><span>LUNACY</span></div>
-        </div>
-        <div class="stage-row">
-            <div class="stage-thumb sel" onclick="setStage(-1)"><div class="stage-rand">?</div><span>RANDOM</span></div>
-            <div class="stage-thumb" onclick="setStage(0)"><img src="ui/arena_funhouse_thumb.jpg" alt=""><span>FUNHOUSE</span></div>
-            <div class="stage-thumb" onclick="setStage(1)"><img src="ui/arena_lunacy_thumb.jpg" alt=""><span>LUNACY</span></div>
-            <div class="stage-thumb" onclick="setStage(2)"><img src="ui/arena_warehouse_thumb.jpg" alt=""><span>WAREHOUSE</span></div>
-        </div>
-        <div class="stats-panel" id="statsPanel">
-            <img class="big-portrait" id="bigPortrait" src="ui/big_caleb.png" alt="">
-            <div class="stats-info">
-                <div class="stats-name" id="statsName">SELECT YOUR FIGHTER</div>
-                <div class="stats-special" id="statsSpecial">&nbsp;</div>
-                <div class="stat-row"><div class="stat-label">POWER</div><div class="stat-bar" id="barPower"></div></div>
-                <div class="stat-row"><div class="stat-label">SPEED</div><div class="stat-bar" id="barSpeed"></div></div>
-                <div class="stat-row"><div class="stat-label">TECHNIQUE</div><div class="stat-bar" id="barTech"></div></div>
-                <div class="stat-row"><div class="stat-label">TOUGHNESS</div><div class="stat-bar" id="barTough"></div></div>
-            </div>
-        </div>
-        <button class="start-button" id="startButton" disabled>START MATCH (VS CPU)</button>
-        <div class="online-row">
-            <button class="online-btn" id="btnQuick">⚡ QUICK MATCH</button>
-            <button class="online-btn" id="btnCreate">CREATE ROOM</button>
-            <button class="online-btn" id="btnJoin">JOIN ROOM</button>
-        </div>
-        <div id="onlineStatus" class="online-status"></div>
-        <div id="loadingMsg">Loading...</div>
-    </div>
-
-    <!-- GAME -->
-    <div id="gameContainer">
-        <canvas id="gameCanvas"></canvas>
-        <div class="hud">
-            
             <div class="special-charge">
                 <div>SPECIAL</div>
                 <div class="special-bar"><div class="special-bar-fill" id="specialBarFill"></div></div>
@@ -251,6 +213,7 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
 </div>
 
 <script>
+console.log('%cJCW LUNACY — BUILD 2026-07-08-MATCHMAKER', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -513,6 +476,7 @@ let floorRect = { L:0, R:0, T:0, B:0 };
 
 function makeFighter(isP1) {
     return {
+        climb: null, diveTimer: 0, fallFace: 'B',
         isP1, wrestler:null,
         x:0, y:0, vx:0, vy:0, direction: isP1 ? 1 : -1,
         health:100, maxHealth:100, ghostHP:100,
@@ -586,6 +550,8 @@ function initializeMatch() {
     activeStage = STAGES[si];
     ARENA.src = activeStage.src;
 
+    if (!gameState.p1Selected) gameState.p1Selected = wrestlers[0];
+    if (!gameState.p2Selected) gameState.p2Selected = wrestlers[1] || wrestlers[0];
     M.p1 = makeFighter(true);  M.p1.wrestler = gameState.p1Selected;
     M.p2 = makeFighter(false); M.p2.wrestler = gameState.p2Selected;
     [M.p1, M.p2].forEach(p => {
@@ -628,10 +594,10 @@ function spawnWeapons() {
 function endMatch(winner, method) {
     if (M.phase === 'slowmo' || M.phase === 'over') return;   // already ending
     M.grapple = null;
+    if (M.p1) { M.p1.climb = null; M.p1.diveTimer = 0; }
+    if (M.p2) { M.p2.climb = null; M.p2.diveTimer = 0; }
     M.winner = winner; M.winMethod = method; M.winFrame = M.frame;
     NET.hostReportEnd();
-    // report a win to the JCW site (Locker) only when the local player (P1) wins
-    try{ if(winner===M.p1 && window.parent && window.parent!==window){ window.parent.postMessage({type:'jcw-win'},'*'); } }catch(e){}
     M.phase = 'slowmo'; M.slowmoTimer = 90;
     Snd.slam(); shake(14); hitStop(10);
     addParticles(winner === M.p1 ? M.p2.x : M.p1.x, winner === M.p1 ? M.p2.y : M.p1.y, 30, 4, true);
@@ -663,28 +629,24 @@ function showVictory() {
 
 // ---------------- GEOMETRY ----------------
 let coverTf = { dx:0, dy:0, dw:1, dh:1 };
-let CAM = { y: 0, x: 0, fy: 0, z: 1, init: false };   // pan + follow-cam (tracks the fighters)
+let CAM = { fx: 0, fy: 0, scale: 1.12, tx: 0, ty: 0, init: false };   // follow camera (tracks the player)
 function computeRects() {
-    // RING-DOMINANT CAMERA (Wrestling Revolution framing): the mat IS the playfield
+    // WHOLE-LEVEL VIEW: contain-fit the full arena image — nothing off-screen, ever
     const iw = ARENA.naturalWidth || 1672, ih = ARENA.naturalHeight || 941;
     const mt = activeStage.mat;
-    const mobile = canvas.width < 640;
-    const safeT = 96, safeB = canvas.height - 210;
-    const usableH = safeB - safeT;
-    const scaleW = (canvas.width * (mobile ? 0.88 : 0.80)) / ((mt.x1 - mt.x0) * iw);
-    const scaleH = (usableH * 0.80) / ((mt.y1 - mt.y0) * ih);
-    const scale = Math.min(scaleW, scaleH);
+    const scale = Math.min(canvas.width / iw, canvas.height / ih);
     const dw = iw * scale, dh = ih * scale;
-    const dx = canvas.width / 2 - (mt.x0 + mt.x1) / 2 * dw;
-    const matHvis = (mt.y1 - mt.y0) * dh;
-    const dy = (safeT + Math.max(0, (usableH - matHvis) * 0.30)) - mt.y0 * dh;
+    const dx = (canvas.width - dw) / 2;
+    const dy = (canvas.height - dh) / 2;
     coverTf = { dx, dy, dw, dh };
     matRect = { L: dx + mt.x0 * dw, R: dx + mt.x1 * dw, T: dy + mt.y0 * dh, B: dy + mt.y1 * dh };
-    // floor: exit through the FRONT (camera pans down to follow)
+    // ringside floor in front of the ring, clamped fully on-screen
+    const drop = Math.max(34, Math.min(84, (matRect.B - matRect.T) * 0.22));
     floorRect = {
         L: Math.max(10, matRect.L - 60), R: Math.min(canvas.width - 10, matRect.R + 60),
         T: matRect.T,
-        B: matRect.B + Math.min(130, (matRect.B - matRect.T) * 0.42)
+        B: Math.min(matRect.B + Math.min(130, (matRect.B - matRect.T) * 0.42),
+                    canvas.height - drop - 14)
     };
 }
 function ringDrop() { return Math.max(34, Math.min(84, (matRect.B - matRect.T) * 0.22)); }
@@ -739,8 +701,10 @@ function ringTap(e) {
     const rect = canvas.getBoundingClientRect();
     const cX = e.touches ? e.touches[0].clientX : e.clientX;
     const cY = e.touches ? e.touches[0].clientY : e.clientY;
-    const x = (cX - rect.left) / rect.width * canvas.width;
-    const y = (cY - rect.top) / rect.height * canvas.height + CAM.y;
+    const sx = (cX - rect.left) / rect.width * canvas.width;
+    const sy = (cY - rect.top) / rect.height * canvas.height;
+    const x = (sx - CAM.tx) / CAM.scale;                      // inverse camera transform
+    const y = (sy - CAM.ty) / CAM.scale;
     if (NET.mode === 'guest') { NET.queueTap(x, y); return; }   // guest: send to host
     performTap(M.p1, M.p2, x, y);
 }
@@ -751,7 +715,7 @@ function performTap(p1, p2, x, y) {
         const v = M.grapple.victim;
         const a = Math.atan2(y - v.y, x - v.x);
         v.vx = Math.cos(a) * 13; v.vy = Math.sin(a) * 8.5;
-        v.downTimer = 75;
+        v.downTimer = 75; v.fallFace = 'B';
         dealDamage(p1, v, 8, { text: 'THROWN!', slam: true });
         if (v.weapon) dropWeapon(v);
         M.grapple = null;
@@ -793,6 +757,12 @@ function performTap(p1, p2, x, y) {
 
 // ---------------- COMBAT CORE ----------------
 function dealDamage(attacker, victim, base, opts = {}) {
+    if (victim.climb) {                                     // struck on the ropes: crash down
+        victim.climb = null;
+        victim.downTimer = 80; victim.fallFace = 'B';
+        addFx(victim.x, victim.y - 30, 'CROTCHED!', { color: '#ff8c1a', size: 16 });
+        shake(5);
+    }
     // combo scaling (passive ticks don't build combos)
     if (!opts.noCombo) {
         attacker.combo = (attacker.comboTimer > 0) ? attacker.combo + 1 : 1;
@@ -824,7 +794,7 @@ function dealDamage(attacker, victim, base, opts = {}) {
     if (victim.health > 0 && victim.health < victim.maxHealth * 0.22 && dmg >= 4 &&
         victim.downTimer <= 0 && Math.random() < 0.25) {
         attacker.combo = 0; attacker.comboTimer = 0;   // knockdown ends the combo
-        victim.downTimer = 85;
+        victim.downTimer = 85; victim.fallFace = opts.slam ? 'B' : 'F';
         addFx(victim.x, victim.y + 18, 'DOWN!', { color: '#ff4455', size: 18 });
         Snd.slam(); shake(6);
     }
@@ -835,6 +805,7 @@ function dealDamage(attacker, victim, base, opts = {}) {
 }
 
 function tryStrike(att, def) {
+    att.strikeKind = (att.strikeKind === undefined ? 0 : att.strikeKind + 1) % 3;   // elbow → punch → kick
     const adx = def.x - att.x, ady = def.y - att.y;
     att.direction = Math.sign(adx) || att.direction;
     att.vx += att.direction * 1.8;
@@ -855,7 +826,7 @@ function tryStrike(att, def) {
                 addParticles(def.x, def.y, 10, 3, false);
                 att.weapon = null;
             }
-            if (wd.damage >= 15) { def.downTimer = 90; addFx(def.x, def.y + 18, 'DOWN!', { color: '#ff4455' }); Snd.slam(); }
+            if (wd.damage >= 15) { def.downTimer = 90; def.fallFace = 'F'; addFx(def.x, def.y + 18, 'DOWN!', { color: '#ff4455' }); Snd.slam(); }
         } else Snd.whoosh();
     } else {
         att.attackCooldown = 22;
@@ -874,7 +845,7 @@ function trySpecial(att, def) {
     att.swingTimer = 18;
     if (Math.abs(def.y - att.y) < 70 && Math.abs(def.x - att.x) < 150 && def.invuln <= 0) {
         att.specialCharge = 0;
-        def.downTimer = 120;
+        def.downTimer = 120; def.fallFace = 'B';
         def.vx = Math.sign(def.x - att.x) * 9;
         Snd.riser();
         dealDamage(att, def, 25, { text: att.wrestler.special + '!!!', color: '#ff2ea6', size: 22, slam: true, meterGain: 0 });
@@ -889,13 +860,62 @@ function trySpecial(att, def) {
 }
 
 // A button — Wrestling Revolution style context action
+function tryClimb(p) {
+    if (M.grapple || p.weapon || p.downTimer > 0 || p.stunTimer > 0 || isRingside(p)) return false;
+    const corners = [[matRect.L, matRect.T], [matRect.R, matRect.T], [matRect.L, matRect.B], [matRect.R, matRect.B]];
+    for (const [cx2, cy2] of corners) {
+        if (Math.hypot(p.x - cx2, p.y - cy2) < 62) {
+            p.climb = { x: cx2, y: cy2 };
+            p.x = cx2; p.y = cy2; p.vx = p.vy = 0; p.moving = false;
+            p.direction = cx2 < (matRect.L + matRect.R) / 2 ? 1 : -1;   // face into the ring
+            addFx(p.x, p.y - 60, 'CLIMB!', { color: '#66e0ff', size: 15 });
+            Snd.whoosh();
+            return true;
+        }
+    }
+    return false;
+}
+function launchDive(p, o) {
+    if (!p.climb) return;
+    p.climb = null;
+    p.diveTimer = 26;
+    const dx = o.x - p.x, dy = o.y - p.y;
+    const d = Math.max(60, Math.hypot(dx, dy));
+    const reach = Math.min(d, 340);                              // max dive distance
+    p.vx = dx / d * reach / 26; p.vy = dy / d * reach / 26;
+    p.direction = Math.sign(dx) || p.direction;
+    addFx(p.x, p.y - 70, 'TOP ROPE!', { color: '#ffdd00', size: 18 });
+    Snd.riser(); shake(3);
+}
+function resolveDive(p, o) {
+    p.diveTimer = 0; p.vx *= 0.2; p.vy *= 0.2;
+    const hit = o.downTimer <= 0 && o.invuln <= 0 && !o.climb &&
+                Math.abs(o.x - p.x) < 78 && Math.abs(o.y - p.y) < 60;
+    if (hit) {
+        o.downTimer = 95; o.fallFace = 'B';
+        o.vx = Math.sign(o.x - p.x || p.direction) * 5;
+        dealDamage(p, o, 16, { text: 'TOP ROPE DIVE!!', color: '#ffdd00', size: 21, slam: true, meterGain: 14 });
+        Snd.crowdPop(); shake(9);
+    } else {
+        p.stunTimer = 42;
+        addFx(p.x, p.y - 40, 'CRASHED!', { color: '#ff4455', size: 16 });
+        Snd.slam(); shake(6);
+        addParticles(p.x, p.y, 10, 3, false);
+    }
+}
 function performGrappleBtn(p, o, dir) {
+    // on the turnbuckle: A climbs back down
+    if (p.climb) {
+        p.climb = null;
+        addFx(p.x, p.y - 40, 'DOWN', { color: '#8899aa', size: 12 });
+        return;
+    }
     // holding a grapple: A throws in held direction (or slams in place)
     if (M.grapple && M.grapple.holder === p && !M.grapple.isPin) {
         const dx = dir.x || p.direction, dy = dir.y || 0;
         const d = Math.hypot(dx, dy) || 1;
         o.vx = dx / d * 13; o.vy = dy / d * 8;
-        o.downTimer = 75;
+        o.downTimer = 75; o.fallFace = 'B';
         dealDamage(p, o, 9, { text: dir.x || dir.y ? 'THROWN!' : 'SLAMMED!', slam: true });
         if (o.weapon) dropWeapon(o);
         M.grapple = null;
@@ -913,8 +933,8 @@ function performGrappleBtn(p, o, dir) {
         Snd.crowdPop();
         return;
     }
-    // tie-up a standing opponent
-    if (o.downTimer <= 0 && o.invuln <= 0 && adx < 80 && ady < 55) {
+    // tie-up a standing opponent (not one perched on the ropes)
+    if (o.downTimer <= 0 && o.invuln <= 0 && !o.climb && adx < 80 && ady < 55) {
         if (p.weapon) dropWeapon(p);
         p.direction = Math.sign(o.x - p.x) || p.direction;
         o.direction = -p.direction;                     // face each other
@@ -938,6 +958,7 @@ function performGrappleBtn(p, o, dir) {
             Snd.whoosh();
             return;
         }
+        tryClimb(p);                                       // nothing else in range: corner climb
     } else { dropWeapon(p); addFx(p.x, p.y - 20, 'DROPPED', { color: '#999', size: 12 }); }
 }
 
@@ -1066,7 +1087,7 @@ function simTick() {
             if (g.holder === p2 && g.frames > 45) {
                 const a = Math.random() * Math.PI * 2;
                 g.victim.vx = Math.cos(a) * 11; g.victim.vy = Math.sin(a) * 6;
-                g.victim.downTimer = 65;
+                g.victim.downTimer = 65; g.victim.fallFace = 'B';
                 dealDamage(p2, g.victim, 8, { text: 'THROWN!', slam: true });
                 M.grapple = null;
             }
@@ -1074,11 +1095,23 @@ function simTick() {
         }
     } else M.lastPinCount = 0;
 
+    // turnbuckle + dive states
+    for (const f of [p1, p2]) {
+        const foe = f === p1 ? p2 : p1;
+        if (f.climb) { f.x = f.climb.x; f.y = f.climb.y; f.vx = f.vy = 0; }
+        if (f.diveTimer > 0) {
+            f.diveTimer--;
+            f.invuln = Math.max(f.invuln, 2);
+            if (f.diveTimer === 0) resolveDive(f, foe);
+        }
+    }
+
     const p1Locked = M.grapple && (M.grapple.holder === p1 || M.grapple.victim === p1);
 
     // ---- P1 control ----
     p1.moving = false;
-    if (!p1Locked && p1.downTimer <= 0 && p1.stunTimer <= 0) {
+    if (p1.climb && input.dpad.y > 0) { p1.climb = null; }                 // step down off the ropes
+    if (!p1Locked && p1.downTimer <= 0 && p1.stunTimer <= 0 && !p1.climb && p1.diveTimer <= 0) {
         if (input.dpad.x !== 0) { p1.vx = input.dpad.x * 3.6 * p1.wrestler.speed; p1.direction = input.dpad.x; p1.moving = true; }
         else p1.vx *= 0.8;
         if (input.dpad.y !== 0) { p1.vy = input.dpad.y * 2.7 * p1.wrestler.speed; p1.moving = true; }
@@ -1093,13 +1126,14 @@ function simTick() {
         }
     }
 
-    if (input.attackTap && !p1Locked && p1.attackCooldown <= 0 && p1.downTimer <= 0) {
+    if (input.attackTap && p1.climb) { launchDive(p1, p2); input.attackTap = false; }
+    if (input.attackTap && !p1Locked && p1.attackCooldown <= 0 && p1.downTimer <= 0 && p1.diveTimer <= 0) {
         if (!tryStomp(p1, p2)) tryStrike(p1, p2);
     }
     if (input.grapTap && p1.downTimer <= 0 && (!p1Locked || (M.grapple && M.grapple.holder === p1))) {
         performGrappleBtn(p1, p2, input.dpad);
     }
-    if (input.specialTap && !p1Locked && p1.downTimer <= 0) trySpecial(p1, p2);
+    if (input.specialTap && !p1Locked && p1.downTimer <= 0 && !p1.climb && p1.diveTimer <= 0) trySpecial(p1, p2);
     input.attackTap = input.grapTap = input.specialTap = false;
 
     // ---- P2: AI offline, remote human online ----
@@ -1192,6 +1226,10 @@ function breakPin(g, text) {
 
 // ---------------- AI ----------------
 function aiUpdate(ai, target) {
+    // player on the turnbuckle: smarter AIs walk away from the dive
+    if (target.climb && ai.aiThink <= 0 && Math.random() < DIFF[M.difficulty].aggro * 0.5) {
+        ai.aiState = 'retreat'; ai.aiThink = 40;
+    }
     if (ai.downTimer > 0) { ai.downTimer--; ai.moving = false; return; }
     if (ai.stunTimer > 0) return;
     const locked = M.grapple && (M.grapple.victim === ai || M.grapple.holder === ai);
@@ -1303,13 +1341,13 @@ function aiStrike(ai, target, wd) {
         (Snd[wd.sfx === 'guitar' ? 'guitarSmash' : wd.sfx] || Snd.whack)();
         ai.weapon.durability--;
         if (ai.weapon.durability <= 0) ai.weapon = null;
-        if (wd.damage >= 15) { target.downTimer = 80; Snd.slam(); }
+        if (wd.damage >= 15) { target.downTimer = 80; target.fallFace = 'F'; Snd.slam(); }
     } else Snd.punch();
 }
 function trySpecialAI(ai, target) {
     ai.specialCharge = 0;
     ai.swingTimer = 18;
-    target.downTimer = 110;
+    target.downTimer = 110; target.fallFace = 'B';
     target.vx = Math.sign(target.x - ai.x) * 8;
     Snd.riser();
     dealDamage(ai, target, 20, { text: ai.wrestler.special + '!!!', color: '#ff2ea6', size: 20, slam: true, meterGain: 0 });
@@ -1322,7 +1360,8 @@ function applyRemote(p, opp) {
     const inp = NET.remote;
     const locked = M.grapple && (M.grapple.holder === p || M.grapple.victim === p);
     p.moving = false;
-    if (!locked && p.downTimer <= 0 && p.stunTimer <= 0) {
+    if (p.climb && inp.dy > 0) p.climb = null;
+    if (!locked && p.downTimer <= 0 && p.stunTimer <= 0 && !p.climb && p.diveTimer <= 0) {
         if (inp.dx !== 0) { p.vx = inp.dx * 3.6 * p.wrestler.speed; p.direction = inp.dx; p.moving = true; }
         else p.vx *= 0.8;
         if (inp.dy !== 0) { p.vy = inp.dy * 2.7 * p.wrestler.speed; p.moving = true; }
@@ -1342,7 +1381,8 @@ function applyRemote(p, opp) {
         inp.attack = false;
         if (M.grapple.escape >= 3) { M.grapple = null; addFx(p.x, p.y, 'ESCAPE!', { color: '#66aaff' }); }
     }
-    if (inp.attack && !locked && p.attackCooldown <= 0 && p.downTimer <= 0) {
+    if (inp.attack && p.climb) { launchDive(p, opp); inp.attack = false; }
+    if (inp.attack && !locked && p.attackCooldown <= 0 && p.downTimer <= 0 && p.diveTimer <= 0) {
         if (!tryStomp(p, opp)) tryStrike(p, opp);
     }
     if (inp.grap && p.downTimer <= 0 && (!locked || (M.grapple && M.grapple.holder === p))) {
@@ -1363,10 +1403,30 @@ function applyRemote(p, opp) {
    Host runs the sim and broadcasts normalized snapshots (12Hz).
    Guest sends inputs (dpad/buttons/taps) and renders interpolation.
 ================================================================ */
+/* ====================================================================
+   ONLINE SETUP — paste your Firebase config between the braces below.
+   Firebase console → Project settings → Your apps → Web app → Config.
+   REQUIRED: databaseURL must be present (enable Build → Realtime Database).
+   Example of a filled-in config:
+     const FIREBASE_CONFIG = {
+         apiKey: "AIzaSyABC123...",
+         authDomain: "my-project.firebaseapp.com",
+         databaseURL: "https://my-project-default-rtdb.firebaseio.com",
+         projectId: "my-project",
+         storageBucket: "my-project.appspot.com",
+         messagingSenderId: "123456789012",
+         appId: "1:1234...:web:abcd..."
+     };
+   ==================================================================== */
 const FIREBASE_CONFIG = {
-    /* PASTE YOUR FIREBASE CONFIG HERE (see README.md → Online Setup)
-       apiKey: "...", authDomain: "...", databaseURL: "...",
-       projectId: "...", storageBucket: "...", messagingSenderId: "...", appId: "..." */
+    apiKey: "AIzaSyCDCfMShCyyFZSC3qp1t75Rx_0fOfH3L_U",
+    authDomain: "jcw-lunacy.firebaseapp.com",
+    databaseURL: "https://jcw-lunacy-default-rtdb.firebaseio.com",
+    projectId: "jcw-lunacy",
+    storageBucket: "jcw-lunacy.firebasestorage.app",
+    messagingSenderId: "743418158514",
+    appId: "1:743418158514:web:4320500a21b18045f5d8ab",
+    measurementId: "G-JDRSWKB65D"
 };
 
 const NET = {
@@ -1398,19 +1458,32 @@ const NET = {
     },
     async init() {
         if (this.db) return true;
-        if (!FIREBASE_CONFIG.apiKey) { alert('Online is not configured yet.\nAdd your Firebase config in index.html (see README).'); return false; }
-        if (!(await this.loadSDK())) { alert('Could not load Firebase SDK. Check connection.'); return false; }
-        firebase.initializeApp(FIREBASE_CONFIG);
-        this.db = firebase.database();
+        if (!FIREBASE_CONFIG.apiKey) {
+            alert('ONLINE NOT SET UP YET\n\nOpen index.html, find FIREBASE_CONFIG near the ONLINE section, and paste your Firebase web config between the braces. See the comment right above it.');
+            return false;
+        }
+        if (!FIREBASE_CONFIG.databaseURL) {
+            alert('MISSING databaseURL\n\nYour config has no databaseURL. In the Firebase console go to Build → Realtime Database → Create Database, then copy the config again (the databaseURL only appears once the database exists).');
+            return false;
+        }
+        if (!(await this.loadSDK())) { alert('Could not load Firebase SDK. Check your internet connection.'); return false; }
+        try {
+            firebase.initializeApp(FIREBASE_CONFIG);
+            this.db = firebase.database();
+        } catch (e) {
+            alert('Firebase failed to initialize:\n' + e.message);
+            return false;
+        }
         return true;
     },
     code() {
         const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
         return Array.from({length: 4}, () => A[Math.floor(Math.random() * A.length)]).join('');
     },
-    async createRoom(wrestlerId) {
+    async createRoom(wrestlerId, presetCode) {
         if (!(await this.init())) return null;
-        this.roomCode = this.code();
+        this.roomCode = presetCode || this.code();
+        gameState.p1Selected = wrestlers.find(w => w.id === wrestlerId) || gameState.p1Selected;
         this.roomRef = this.db.ref('rooms/' + this.roomCode);
         await this.roomRef.set({
             state: 'lobby', created: Date.now(),
@@ -1429,32 +1502,64 @@ const NET = {
         const snap = await ref.once('value');
         if (!snap.exists() || snap.val().guest) return false;
         this.roomCode = code; this.roomRef = ref; this.mode = 'guest';
+        gameState.p2Selected = wrestlers.find(w => w.id === wrestlerId) || gameState.p2Selected;
         await ref.child('guest').set({ wrestler: wrestlerId });
         ref.child('guest/online').onDisconnect().remove();
         ref.child('guest/online').set(true);
         this.watchRoom();
         return true;
     },
+    // Robust matchmaker: create our room up front, then ONE atomic transaction
+    // either claims an existing waiter or registers us. Serialized transactions
+    // guarantee that of two simultaneous searchers, one hosts and one joins.
     async quickMatch(wrestlerId) {
         if (!(await this.init())) return;
+        this.mmCancelled = false;
         const q = this.db.ref('quickQueue');
-        const res = await q.transaction(cur => {
-            if (cur && cur.code && Date.now() - cur.t < 60000) return null; // claim existing
-            return { code: 'PENDING', t: Date.now() };
-        });
-        const claimed = !res.committed;
-        if (claimed) {
-            const cur = (await q.once('value')).val();
-            await q.remove();
-            if (cur && cur.code && cur.code !== 'PENDING') {
-                const ok = await this.joinRoom(cur.code, wrestlerId);
-                if (ok) { setOnlineStatus('MATCH FOUND — JOINING...'); return; }
+        const myCode = this.code();
+        await this.createRoom(wrestlerId, myCode);
+        if (this.mmCancelled) { this.cleanupRoom(); return; }
+        let oppCode = null;
+        await q.transaction(cur => {
+            if (cur && cur.code && cur.code !== myCode && Date.now() - cur.t < 45000) {
+                oppCode = cur.code;
+                return null;
             }
-            // fall through to hosting
+            oppCode = null;
+            return { code: myCode, t: Date.now() };
+        });
+        if (this.mmCancelled) {
+            await q.transaction(cur => (cur && cur.code === myCode) ? null : cur).catch(()=>{});
+            this.cleanupRoom();
+            return;
         }
-        const code = await this.createRoom(wrestlerId);
-        await q.set({ code, t: Date.now() });
-        setOnlineStatus('WAITING FOR OPPONENT... ROOM ' + code);
+        if (oppCode) {
+            this.cleanupRoom();
+            const ok = await this.joinRoom(oppCode, wrestlerId);
+            if (ok) { setOnlineStatus('MATCH FOUND — JOINING…'); return; }
+            await this.createRoom(wrestlerId, myCode);
+            await q.set({ code: myCode, t: Date.now() });
+            setOnlineStatus('SEARCHING FOR OPPONENT…');
+        } else {
+            setOnlineStatus('SEARCHING FOR OPPONENT…');
+        }
+    },
+    cleanupRoom() {
+        try {
+            if (this.roomRef) { this.roomRef.off(); this.roomRef.remove().catch(()=>{}); }
+        } catch (e) {}
+        this.roomRef = null; this.roomCode = null; this.mode = 'none';
+    },
+    async cancelMatchmaking() {
+        this.mmCancelled = true;
+        const myCode = this.roomCode;
+        try {
+            if (this.db) {
+                await this.db.ref('quickQueue')
+                    .transaction(cur => (cur && cur.code === myCode) ? null : cur);
+            }
+        } catch (e) {}
+        this.cleanupRoom();
     },
     watchRoom() {
         this.roomRef.on('value', s => {
@@ -1464,6 +1569,7 @@ const NET = {
                 if (r.guest && M.phase === 'idle' && r.state === 'lobby') {
                     // both present: host starts
                     this.roomRef.update({ state: 'playing' });
+                    gameState.p1Selected = wrestlers.find(w => w.id === r.host.wrestler) || gameState.p1Selected || wrestlers[0];
                     gameState.p2Selected = wrestlers.find(w => w.id === r.guest.wrestler) || wrestlers[0];
                     startOnlineMatch();
                 }
@@ -1471,6 +1577,7 @@ const NET = {
             } else {
                 if (r.state === 'playing' && M.phase === 'idle') {
                     gameState.p1Selected = wrestlers.find(w => w.id === r.host.wrestler) || wrestlers[0];
+                    gameState.p2Selected = wrestlers.find(w => w.id === (r.guest && r.guest.wrestler)) || gameState.p2Selected || wrestlers[0];
                     selectedStage = (typeof r.stage === 'number') ? r.stage : -1;
                     startOnlineMatch();
                 }
@@ -1527,7 +1634,8 @@ const NET = {
         return [ +this.nx(p.x).toFixed(3), +this.ny(p.y).toFixed(3), p.direction,
                  Math.round(p.health), p.downTimer, p.swingTimer, +p.elev.toFixed(2),
                  p.weapon ? p.weapon.type : '', p.weapon ? p.weapon.durability : 0,
-                 p.moving ? 1 : 0, p.jumpTimer, Math.round(p.specialCharge), p.combo ];
+                 p.moving ? 1 : 0, p.jumpTimer, Math.round(p.specialCharge), p.combo,
+                 p.climb ? 1 : 0, p.diveTimer, p.fallFace === 'F' ? 1 : 0, p.stunTimer ];
     },
     sendSnap() {
         if (this.mode !== 'host' || !this.roomRef || M.phase === 'idle') return;
@@ -1558,6 +1666,10 @@ const NET = {
         p.moving = !!arr[9];
         if (p.moving) p.walkAnim += 0.15;
         p.jumpTimer = arr[10]; p.specialCharge = arr[11]; p.combo = arr[12];
+        p.climb = arr[13] ? { x: p.x, y: p.y } : null;
+        p.diveTimer = arr[14] || 0;
+        p.fallFace = arr[15] ? 'F' : 'B';
+        p.stunTimer = arr[16] || 0;
     },
     guestApply() {
         if (this.mode !== 'guest' || !this.snapNext) return;
@@ -1592,6 +1704,7 @@ const NET = {
 };
 
 function startOnlineMatch() {
+    if (typeof stopMMUI === 'function') stopMMUI(null);
     const cs = document.getElementById('characterSelect');
     cs.classList.add('hidden');
     cs.style.display = 'none';
@@ -1684,7 +1797,7 @@ function drawHUD() {
 
         // name + combo + weapon
         ctx.font = `900 ${mobile ? 10 : 13}px Arial`; ctx.textAlign = rightSide ? 'right' : 'left';
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = '#d6d6d6';
         ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
         const nx = rightSide ? bx + barW : bx;
         ctx.strokeText(p.wrestler.name.toUpperCase(), nx, by + barH + 16);
@@ -1724,7 +1837,7 @@ function drawHUD() {
     sg2.addColorStop(0, '#ffdd00'); sg2.addColorStop(1, '#ff8c00');
     ctx.fillStyle = sg2;
     ctx.fillRect(sx, sy, sw * me.specialCharge / 100, sh);
-    ctx.font = '900 10px Arial'; ctx.textAlign = 'right'; ctx.fillStyle = ready ? '#fff' : '#aaa';
+    ctx.font = '900 10px Arial'; ctx.textAlign = 'right'; ctx.fillStyle = ready ? '#d6d6d6' : '#8e8e8e';
     ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5;
     const label = ready ? '★ SPECIAL READY — Y ★' : 'SPECIAL';
     ctx.strokeText(label, sx + sw, sy - 8);
@@ -1735,15 +1848,52 @@ function drawHUD() {
 function spriteFor(f) {
     const S = SPRITES[f.wrestler.id];
     if (!S) return null;
-    if (M.grapple && M.grapple.isPin && M.grapple.victim === f) return S.fallen;
-    if (f.downTimer > 0) return S.fallen;
-    if (f.swingTimer > 0) {
-        const fr = S.elbowR;
-        return fr[Math.min(fr.length - 1, Math.floor((18 - f.swingTimer) / 6))];
+    if ((M.phase === 'slowmo' || M.phase === 'over') && M.winner === f && S.aWin && f.downTimer <= 0)
+        return { img: S.aWin, flip: false };                                          // victory pose
+    const pinned = M.grapple && M.grapple.isPin && M.grapple.victim === f;
+    if (M.grapple && M.grapple.isPin && M.grapple.holder === f && S.aCrouch)
+        return { img: S.aCrouch, flip: f.direction < 0 };                            // covering the pin
+    if (f.climb) return { img: S.aIdleB || S.idle, flip: false };                     // back to camera on the ropes
+    if (f.diveTimer > 0) {
+        if (f.diveTimer > 20 && S.aJump) return { img: S.aJump[0], flip: f.direction < 0, noHeld: true };   // leap off the post
+        return { img: (S.aDive && S.aDive[0]) || S.jump, flip: f.direction > 0, noHeld: true };
     }
-    if (f.jumpTimer > 0) return S.jump;
-    if (f.moving) return S.walkR[Math.floor(f.walkAnim) % S.walkR.length];
-    return S.idle;
+    if (pinned || f.downTimer > 0) {
+        if (!pinned && f.downTimer > 0 && f.downTimer <= 26 && S.aGetup)              // rising animation
+            return { img: S.aGetup[Math.min(2, Math.floor((26 - f.downTimer) / 9))], flip: f.direction < 0 };
+        const fb = f.fallFace === 'F' ? (S.aFallF || S.fallen) : (S.aFallB || S.fallen);
+        return { img: fb, flip: f.direction < 0 };
+    }
+    if (f.stunTimer > 0 && S.aStagger) return { img: S.aStagger, flip: false };
+    if (f.swingTimer > 0) {
+        const idx = Math.min(2, Math.floor((18 - f.swingTimer) / 6));
+        const pick = (arr) => arr[Math.min(arr.length - 1, idx)];
+        if (f.weapon) {                                                               // weapon-specific swing frames
+            const t = f.weapon.type;
+            if (t === 'chair' && S.aChairR) return { img: pick(S.aChairR), flip: f.direction < 0, noHeld: true };
+            if (t === 'kendo' && S.aKendoR && S.aKendoL)
+                return { img: pick(f.direction < 0 ? S.aKendoL : S.aKendoR), flip: false, noHeld: true };
+            if (t === 'belt' && (S.aBeltR || S.aBeltL)) {
+                const arr = f.direction < 0 ? (S.aBeltL || S.aBeltR) : (S.aBeltR || S.aBeltL);
+                return { img: pick(arr), flip: f.direction < 0 && !S.aBeltL, noHeld: true };
+            }
+        }
+        // bare-handed strike variety: elbow / punch / kick, chosen per swing
+        const kind = f.strikeKind || 0;
+        const sets = [ [S.aElbowL, S.aElbowR], [S.aPunchL, S.aPunchR], [S.aKickL, S.aKickR] ];
+        const [L, R] = sets[kind % sets.length];
+        if (L && R) return { img: pick(f.direction < 0 ? L : R), flip: false };
+        const fr = S.elbowR;
+        return { img: pick(fr), flip: f.direction < 0 };
+    }
+    if (f.jumpTimer > 0) return { img: S.jump, flip: f.direction < 0 };
+    if (f.moving) {
+        const fast = Math.hypot(f.vx, f.vy) > 3.3;
+        const L = fast ? (S.aRunL || S.aWalkL) : S.aWalkL, R = fast ? (S.aRunR || S.aWalkR) : S.aWalkR;
+        if (L && R) return { img: (f.direction < 0 ? L : R)[Math.floor(f.walkAnim) % 4], flip: false };
+        return { img: S.walkR[Math.floor(f.walkAnim) % S.walkR.length], flip: f.direction < 0 };
+    }
+    return { img: S.aIdle || S.idle, flip: false };
 }
 
 function render() {
@@ -1755,32 +1905,11 @@ function render() {
     } else M.shake = 0;
 
     computeRects();
-    // camera pan: follow the brawl to ringside
-    const anyOut = (M.p1 && isRingside(M.p1)) || (M.p2 && isRingside(M.p2));
-    const panMax = Math.max(0, (floorRect.B + 70 + ringDrop()) - (canvas.height - 200));
-    const panTarget = anyOut ? panMax : 0;
-    CAM.y += (panTarget - CAM.y) * 0.06;
+    // ---- static camera: the whole level is on screen, nothing moves ----
+    CAM.tx = 0; CAM.ty = 0; CAM.scale = 1;
     ctx.save();
-    ctx.translate(0, -CAM.y);
-
-    // FOLLOW CAMERA: track the fighters' midpoint, zoom to keep both framed
-    let fx = canvas.width / 2, fy = canvas.height / 2, tz = 1;
-    if (M.p1 && M.p2) {
-        fx = (M.p1.x + M.p2.x) / 2;
-        fy = (M.p1.y + M.p2.y) / 2 - 70;
-        const spread = Math.abs(M.p1.x - M.p2.x) + 430;   // margin keeps both + breathing room
-        tz = Math.min(1.5, Math.max(1, canvas.width / spread));
-    }
-    if (!CAM.init) { CAM.x = fx; CAM.fy = fy; CAM.init = true; }
-    CAM.z  += (tz - CAM.z) * 0.06;
-    CAM.x  += (fx - CAM.x) * 0.08;
-    CAM.fy += (fy - CAM.fy) * 0.08;
-    const vz = CAM.z, vw = canvas.width / vz, vh = canvas.height / vz;
-    const ccx = Math.max(vw / 2, Math.min(canvas.width  - vw / 2, CAM.x));
-    const ccy = Math.max(vh / 2, Math.min(canvas.height - vh / 2, CAM.fy));
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.scale(vz, vz);
-    ctx.translate(-ccx, -ccy);
+    ctx.translate(CAM.tx, CAM.ty);
+    ctx.scale(CAM.scale, CAM.scale);
 
     // 1. arena (zoomed on the ring; backfill exposed edges)
     ctx.fillStyle = '#0a0a0a';
@@ -1874,9 +2003,12 @@ function render() {
 }
 
 function drawFighter(f) {
-    const img = spriteFor(f);
+    const sp = spriteFor(f);
+    const img = sp && sp.img;
     const dropY = f.elev * ringDrop();
-    const jumpArc = f.jumpTimer > 0 ? Math.sin((30 - f.jumpTimer) / 30 * Math.PI) * 30 : 0;
+    let jumpArc = f.jumpTimer > 0 ? Math.sin((30 - f.jumpTimer) / 30 * Math.PI) * 30 : 0;
+    if (f.climb) jumpArc = 42;                                                    // perched on the turnbuckle
+    if (f.diveTimer > 0) jumpArc = Math.sin(f.diveTimer / 26 * Math.PI) * 62;     // flight arc
     const feetY = f.y + 52 + dropY;
     const matH = matRect.B - matRect.T;
     const depth = (f.y - matRect.T) / Math.max(1, matH);
@@ -1901,8 +2033,7 @@ function drawFighter(f) {
         const targetH = baseH * depthScale;
         const scale = targetH / img.naturalHeight;
         const w = img.naturalWidth * scale, h = targetH;
-        const S = SPRITES[f.wrestler.id];
-        const flip = f.direction < 0 && img !== S.idle;
+        const flip = !!sp.flip;
         const drawY = feetY - h - jumpArc;
 
         // motion trail on fast bodies (throws, specials)
@@ -1920,8 +2051,8 @@ function drawFighter(f) {
         }
 
         const pinning = M.grapple && M.grapple.isPin && M.grapple.holder === f;
-        const ph = pinning ? h * 0.78 : h;         // crouch over the pinned body
-        const py = pinning ? drawY + (h - ph) : drawY;
+        const ph = pinning && !SPRITES[f.wrestler.id].aCrouch ? h * 0.78 : h;
+        const py = drawY + (h - ph);
         ctx.save();
         if ((f.stunTimer > 0 || f.invuln > 0) && Math.floor(M.frame / 4) % 2 === 0) ctx.globalAlpha = 0.6;
         ctx.imageSmoothingEnabled = false;
@@ -1929,8 +2060,8 @@ function drawFighter(f) {
         else ctx.drawImage(img, f.x - w / 2, py, w, ph);
         ctx.restore();
 
-        // weapon in hand: grip pivot, wind-up swing arc
-        if (f.weapon && f.downTimer <= 0) {
+        // weapon in hand: grip pivot, wind-up swing arc (skipped when the swing sprite draws the weapon)
+        if (f.weapon && f.downTimer <= 0 && !sp.noHeld && !f.climb) {
             const prog = f.swingTimer > 0 ? (18 - f.swingTimer) / 18 : -1;
             const rot = prog < 0 ? f.direction * 0.22
                                  : f.direction * (-0.7 + prog * 2.1);
@@ -1972,10 +2103,43 @@ function loop(t) {
 
 // ---------------- WIRE UP ----------------
 document.getElementById('startButton').addEventListener('click', startMatch);
+let mmSearching = false, mmDotTimer = null, mmTimeout = null;
+function stopMMUI(finalMsg) {
+    mmSearching = false;
+    if (mmDotTimer) { clearInterval(mmDotTimer); mmDotTimer = null; }
+    if (mmTimeout) { clearTimeout(mmTimeout); mmTimeout = null; }
+    const b = document.getElementById('btnQuick');
+    if (b) b.textContent = '⚡ QUICK MATCH';
+    if (finalMsg != null) setOnlineStatus(finalMsg);
+}
+function startMMUI() {
+    mmSearching = true;
+    const b = document.getElementById('btnQuick');
+    if (b) b.textContent = '✖ CANCEL SEARCH';
+    let dots = 0;
+    setOnlineStatus('SEARCHING FOR OPPONENT');
+    mmDotTimer = setInterval(() => {
+        dots = (dots + 1) % 4;
+        setOnlineStatus('SEARCHING FOR OPPONENT' + '.'.repeat(dots));
+    }, 400);
+    mmTimeout = setTimeout(async () => {
+        await NET.cancelMatchmaking();
+        stopMMUI('NO OPPONENT FOUND — TAP QUICK MATCH TO RETRY');
+    }, 45000);
+}
 document.getElementById('btnQuick').addEventListener('click', async () => {
+    if (mmSearching) {
+        await NET.cancelMatchmaking();
+        stopMMUI('SEARCH CANCELLED');
+        return;
+    }
     if (!gameState.p1Selected) { setOnlineStatus('PICK YOUR FIGHTER FIRST'); return; }
-    setOnlineStatus('SEARCHING...');
-    await NET.quickMatch(gameState.p1Selected.id);
+    startMMUI();
+    try {
+        await NET.quickMatch(gameState.p1Selected.id);
+    } catch (e) {
+        stopMMUI('MATCHMAKING ERROR: ' + (e && e.message ? e.message : e));
+    }
 });
 document.getElementById('btnCreate').addEventListener('click', async () => {
     if (!gameState.p1Selected) { setOnlineStatus('PICK YOUR FIGHTER FIRST'); return; }
