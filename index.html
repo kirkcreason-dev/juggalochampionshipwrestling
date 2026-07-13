@@ -9,9 +9,12 @@
     <meta http-equiv="Expires" content="0">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-body { background:#0a0a0a; font-family:Arial,sans-serif; overflow:hidden; height:100vh; }
-#container { width:100%; height:100vh; display:flex; flex-direction:column; background:#0a0a0a; }
-.screen { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#fff; padding:16px; overflow-y:auto; }
+body { background:#0a0a0a; font-family:Arial,sans-serif; overflow:hidden; height:100vh; height:100dvh; }
+#container { width:100%; height:100vh; height:100dvh; display:flex; flex-direction:column; background:#0a0a0a; }
+/* flex-start + auto margins = centered when it fits, scrollable (never cropped) when it doesn't */
+.screen { flex:1; display:flex; flex-direction:column; justify-content:flex-start; align-items:center; color:#fff; padding:16px; padding-bottom:max(16px, env(safe-area-inset-bottom)); overflow-y:auto; }
+.screen > :first-child { margin-top:auto; }
+.screen > :last-child { margin-bottom:auto; }
 .screen.hidden { display:none; }
 
 /* ============ CHARACTER SELECT ============ */
@@ -20,10 +23,10 @@ body { background:#0a0a0a; font-family:Arial,sans-serif; overflow:hidden; height
 #characterSelect > * { position:relative; z-index:1; }
 .title-img { width:min(90vw,520px); margin-bottom:10px; image-rendering:pixelated; }
 .vs-row { display:flex; align-items:center; gap:16px; margin-bottom:12px; font-size:13px; color:#d4af37; font-weight:bold; text-shadow:1px 1px 2px #000; }
-.roster-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:100%; max-width:540px; margin-bottom:12px; }
+.roster-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px; width:100%; max-width:640px; margin-bottom:12px; }
 .wrestler-card { border:3px solid #6a6a6a; border-radius:6px; cursor:pointer; transition:all 0.12s; overflow:hidden; position:relative; background:#111; }
 .wrestler-card img { width:100%; display:block; image-rendering:pixelated; }
-.wrestler-card .card-name { display:block; text-align:center; font-size:10px; font-weight:900; text-transform:uppercase; color:#ddd; letter-spacing:1px; background:linear-gradient(180deg,#3a3a3a,#1c1c1c); padding:4px 2px; border-top:2px solid #555; }
+.wrestler-card .card-name { display:flex; align-items:center; justify-content:center; min-height:24px; text-align:center; font-size:8px; font-weight:900; text-transform:uppercase; color:#ddd; letter-spacing:0.5px; background:linear-gradient(180deg,#3a3a3a,#1c1c1c); padding:3px 2px; border-top:2px solid #555; line-height:1.2; }
 .wrestler-card:hover { border-color:#ffcc33; box-shadow:0 0 14px rgba(255,204,51,0.5); }
 .wrestler-card.sel1 { border-color:#ffcc33; box-shadow:0 0 18px rgba(255,204,51,0.8); }
 .wrestler-card.sel1::after { content:'1P'; position:absolute; top:4px; left:6px; color:#ffcc33; font-weight:900; font-size:13px; text-shadow:1px 1px 2px #000; }
@@ -118,6 +121,12 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
 .btn-b { background:radial-gradient(circle at 30% 30%,#ff5555,#cc0000); color:#fff; right:0; bottom:38px; }
 .btn-y { background:radial-gradient(circle at 30% 30%,#ffe44d,#ffaa00); color:#333; left:54px; top:0; }
 .circle-btn.pressed { transform:scale(0.92); box-shadow:inset 0 2px 4px rgba(0,0,0,0.5); }
+
+/* pause + desktop layout */
+.pause-btn { position:absolute; top:50px; left:50%; transform:translateX(-50%); width:40px; height:28px; display:flex; align-items:center; justify-content:center; background:rgba(8,8,8,0.82); border:2px solid #d4af37; border-radius:6px; color:#d4af37; font-size:12px; font-weight:900; z-index:12; pointer-events:auto; cursor:pointer; user-select:none; -webkit-user-select:none; }
+.pause-btn:active { transform:translateX(-50%) scale(0.94); }
+body.no-touch .controller { display:none; }
+body.no-touch .hint-text { bottom:12px; }
 </style>
 </head>
 <body>
@@ -167,11 +176,7 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
         <div class="hud">
-            
-            <div class="special-charge">
-                <div>SPECIAL</div>
-                <div class="special-bar"><div class="special-bar-fill" id="specialBarFill"></div></div>
-            </div>
+            <div class="pause-btn" id="pauseBtn">❚❚</div>
             <div class="hint-text">A: GRAPPLE / PIN / PICK UP<br>IN GRAPPLE: DIR + A = THROW, B = STRIKE<br>B NEAR DOWNED: STOMP<br>MASH B TO ESCAPE &amp; KICK OUT</div>
 
             <div class="intro-overlay hidden" id="introOverlay">
@@ -213,7 +218,7 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
 </div>
 
 <script>
-console.log('%cJCW LUNACY — BUILD 2026-07-08-MATCHMAKER', 'color:#8dff1e;font-weight:bold');
+console.log('%cJCW LUNACY — BUILD 2026-07-13-ROSTER25', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -221,14 +226,48 @@ console.log('%cJCW LUNACY — BUILD 2026-07-08-MATCHMAKER', 'color:#8dff1e;font-
 ================================================================ */
 
 // ---------------- DATA ----------------
+// stats from the approved roster sheet: [power, speed, technique, toughness]
+// engine values derived: health = 41 + 7*tough, speed = 0.65 + 0.05*spd, power = 0.65 + 0.05*pow
+// base/hue = placeholder body + tint until this wrestler's own art + manifest entry exist
+function W(name, id, s, special, opts = {}) {
+    return {
+        name, id, special: special || null,
+        health: 41 + 7 * s[3], speed: 0.65 + 0.05 * s[1], power: 0.65 + 0.05 * s[0],
+        stats: { power: s[0], speed: s[1], tech: s[2], tough: s[3] },
+        base: opts.base || null, hue: opts.hue || 0
+    };
+}
 const wrestlers = [
-    { name:"Caleb Konley",   id:"caleb",   health:97,  speed:1.05, power:1.0,  special:"BURNING HAMMER",    stats:{power:7, speed:8,tech:9,tough:8} },
-    { name:"Josh Bishop",    id:"bishop",  health:104, speed:0.95, power:1.15, special:"EXIT 187",          stats:{power:10,speed:6,tech:7,tough:9} },
-    { name:"Dani Mo",        id:"dani",    health:97,  speed:1.05, power:0.95, special:"MOON MIST TWIST",    stats:{power:6, speed:8,tech:8,tough:8} },
-    { name:"Father Bronson", id:"bronson", health:97,  speed:0.95, power:1.05, special:"TEXAS CLOVERLEAF",   stats:{power:8, speed:6,tech:7,tough:8} },
-    { name:"Atiba",          id:"atiba",   health:90,  speed:1.05, power:0.95, special:"CHOPPA CITY SLAM",   stats:{power:6, speed:8,tech:8,tough:7} },
-    { name:"Bruce Wayans",   id:"bruce",   health:97,  speed:0.9,  power:1.1,  special:"CHOPPA CITY CRUSH",  stats:{power:9, speed:5,tech:7,tough:8} }
+    // original six (own art)
+    W('"The Chosen One" Caleb Konley', 'caleb',   [7,8,9,8],  'BURNING HAMMER'),
+    W('"Big Money" Josh Bishop',       'bishop',  [10,6,7,9], 'EXIT 187'),
+    W('"Dino-Myte" Dani Mo',           'dani',    [6,8,8,8],  'MOON MIST TWIST'),
+    W('Father Bronson',                'bronson', [8,6,7,8],  'THE RED BLOOM'),
+    W('Atiba',                         'atiba',   [6,8,8,7],  'SUCKA BUSTA'),
+    W('Bruce Wayans',                  'bruce',   [9,5,7,8],  'SUCKA BUSTA'),
+    // approved additions (placeholder bodies until assets land)
+    W('"Mr. JCW" Kerry Morton',        'kerry',    [7,8,10,7], 'KISS IT GOODBYE',       { base:'caleb',   hue:100 }),
+    W('2 Tuff Tony',                   'tony',     [8,5,6,10], 'THE METEORITE',         { base:'bishop',  hue:40 }),
+    W('Cokane',                        'cokane',   [7,8,10,7], 'COKE SLAM',             { base:'caleb',   hue:180 }),
+    W('EC3',                           'ec3',      [8,6,8,8],  'ONE PERCENTER',         { base:'bishop',  hue:300 }),
+    W('FACADE',                        'facade',   [5,10,8,7], null,                    { base:'atiba',   hue:120 }),
+    W('Hokane',                        'hokane',   [8,6,6,8],  null,                    { base:'bronson', hue:60 }),
+    W('J-Rod',                         'jrod',     [9,6,7,8],  null,                    { base:'bruce',   hue:200 }),
+    W('Jeeves',                        'jeeves',   [5,7,7,6],  'HEADS BANGERS BALLS',   { base:'bishop',  hue:160 }),
+    W('JP Grayson',                    'jpgrayson',[5,9,8,7],  'T-GIMMICK',             { base:'caleb',   hue:260 }),
+    W('Matt Cross',                    'mattcross',[6,10,9,6], 'SHOOTING STAR PRESS',   { base:'atiba',   hue:200 }),
+    W('Mosh Pit Mike',                 'moshpit',  [6,6,7,8],  'SNAPMARE POWERBOMB',    { base:'bronson', hue:140 }),
+    W('Ring Rat',                      'ringrat',  [7,5,5,7],  'STUNNER',               { base:'bishop',  hue:80 }),
+    W('Sally Boy',                     'sallyboy', [7,8,5,7],  'HOOK KICK',             { base:'atiba',   hue:300 }),
+    W('"Iron Demon" Shane Mercer',     'mercer',   [10,6,7,8], 'MOONSAULT AND BATTERY', { base:'bruce',   hue:120 }),
+    W('Steven Flowe',                  'flowe',    [6,10,8,7], 'STEVEN FLOWESION',      { base:'caleb',   hue:140 }),
+    W('The Green Phantom',             'phantom',  [7,6,6,6],  null,                    { base:'bronson', hue:120 }),
+    W('Tommy Grayson',                 'tgrayson', [5,9,8,7],  'T-GIMMICK',             { base:'caleb',   hue:320 }),
+    W('Vincenzo',                      'vincenzo', [8,5,6,7],  null,                    { base:'bishop',  hue:220 }),
+    W('Yabo the Clown',                'yabo',     [7,8,7,8],  null,                    { base:'atiba',   hue:40 })
 ];
+// not built: Luigi Primo, Sophia Rose (approval: NO) — plus all blank-approval names, pending sign-off
+function shortName(w) { return w.name.replace(/[“"][^"”]*[”"]\s*/g, '').trim(); }
 
 const WEAPON_TYPES = {
     chair:    { name:"STEEL CHAIR", damage:12, durability:5,  range:100, ground:"chair_open",  held:"chair_folded", sfx:"clang" },
@@ -244,9 +283,31 @@ const STAGES = [
     { id:'lunacy',    name:'LUNACY',    src:'ui/arena_lunacy.jpg',    mat:{x0:0.315,x1:0.71,y0:0.385,y1:0.60},  rope:{x0:0.25,x1:0.78,y0:0.50,y1:0.645} },
     { id:'warehouse', name:'WAREHOUSE', src:'ui/arena_warehouse.jpg', mat:{x0:0.315,x1:0.71,y0:0.46,y1:0.595},  rope:{x0:0.28,x1:0.76,y0:0.545,y1:0.655} }
 ];
-// portraits for canvas HUD
+// portraits for canvas HUD (placeholders start on their base body's art; tinted copies swap in after load)
 const CARD_IMGS = {};
-wrestlers.forEach(w => { const i = new Image(); i.src = 'ui/card_' + w.id + '.png'; CARD_IMGS[w.id] = i; });
+const BIG_IMGS = {};
+const GEN = { card: {}, big: {} };            // generated tinted placeholder art
+wrestlers.forEach(w => {
+    const srcId = w.base || w.id;
+    const c = new Image(); c.src = 'ui/card_' + srcId + '.png'; CARD_IMGS[w.id] = c;
+    const b = new Image(); b.src = 'ui/big_'  + srcId + '.png'; BIG_IMGS[w.id]  = b;
+});
+function uiSrc(kind, w) {
+    if (GEN[kind][w.id]) return GEN[kind][w.id].src;
+    return `ui/${kind}_${w.base && w.real !== true ? w.base : w.id}.png`;
+}
+function tintedCopy(img, hue) {
+    try {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        const cx = c.getContext('2d');
+        cx.filter = `hue-rotate(${hue}deg) saturate(0.92)`;
+        cx.drawImage(img, 0, 0);
+        const out = new Image();
+        out.src = c.toDataURL();
+        return out;
+    } catch (e) { return img; }                // tainted canvas etc: fall back to untinted base art
+}
 
 const NEON = ['#ff2ea6','#8dff1e','#ff8c1a','#c04dff','#ffe000'];
 
@@ -396,6 +457,18 @@ async function loadAssets() {
     });
     STAGES.forEach(s => { STAGE_IMGS[s.id] = loadImg(s.src, jobs); });
     await Promise.all(jobs);
+    // real art exists when the wrestler has a manifest entry; otherwise alias the base body + tint
+    wrestlers.forEach(w => {
+        w.real = !!SPRITES[w.id];
+        if (!w.real && w.base && SPRITES[w.base]) {
+            SPRITES[w.id] = SPRITES[w.base];
+            GEN.card[w.id] = tintedCopy(CARD_IMGS[w.id], w.hue);
+            GEN.big[w.id]  = tintedCopy(BIG_IMGS[w.id],  w.hue);
+            CARD_IMGS[w.id] = GEN.card[w.id];
+            const el = document.querySelector(`.wrestler-card img[data-wid="${w.id}"]`);
+            if (el) el.src = GEN.card[w.id].src;
+        }
+    });
     spritesReady = true;
     document.getElementById('loadingMsg').textContent = '';
     refreshStartButton();
@@ -428,15 +501,15 @@ function populateRoster() {
     wrestlers.forEach(w => {
         const card = document.createElement('div');
         card.className = 'wrestler-card';
-        card.innerHTML = `<img src="ui/card_${w.id}.png" alt="${w.name}"><span class="card-name">${w.name}</span>`;
+        card.innerHTML = `<img src="ui/card_${w.base || w.id}.png" data-wid="${w.id}" alt="${w.name}"><span class="card-name">${shortName(w)}</span>`;
         card.addEventListener('click', () => { showStats(w); selectWrestler(w, card); Snd.unlock(); });
         grid.appendChild(card);
     });
 }
 function showStats(w) {
-    document.getElementById('bigPortrait').src = `ui/big_${w.id}.png`;
+    document.getElementById('bigPortrait').src = uiSrc('big', w);
     document.getElementById('statsName').textContent = w.name;
-    document.getElementById('statsSpecial').textContent = 'SPECIAL: ' + w.special;
+    document.getElementById('statsSpecial').textContent = 'SPECIAL: ' + (w.special || 'TBD');
     const map = { barPower: w.stats.power, barSpeed: w.stats.speed, barTech: w.stats.tech, barTough: w.stats.tough };
     for (const [id, val] of Object.entries(map)) {
         document.getElementById(id).querySelectorAll('.stat-seg').forEach((seg, i) => seg.classList.toggle('on', i < val));
@@ -469,6 +542,7 @@ function resizeCanvas() { canvas.width = canvas.offsetWidth; canvas.height = can
 window.addEventListener('resize', () => { resizeCanvas(); });
 
 // ---------------- MATCH STATE ----------------
+const TIME_LIMIT = 180;                    // seconds — countdown clock, decision at zero
 const ARENA = new Image();
 let activeStage = STAGES[1];
 let matRect = { L:0, R:0, T:0, B:0 };
@@ -618,7 +692,7 @@ function showVictory() {
         });
     }
     const w = M.winner;
-    document.getElementById('victoryPortrait').src = `ui/big_${w.wrestler.id}.png`;
+    document.getElementById('victoryPortrait').src = uiSrc('big', w.wrestler);
     document.getElementById('resultText').textContent = w.wrestler.name + ' WINS';
     document.getElementById('resultDetail').textContent = 'by ' + M.winMethod;
     const secs = Math.floor(M.winFrame / 60);
@@ -681,17 +755,45 @@ bindButton('btnA', () => input.grapTap = true);
 bindButton('btnB', () => input.attackTap = true);
 bindButton('btnY', () => input.specialTap = true);
 
-const KEYMAP = { ArrowLeft:['x',-1], ArrowRight:['x',1], ArrowUp:['y',-1], ArrowDown:['y',1] };
+const KEYMAP = { arrowleft:['x',-1], arrowright:['x',1], arrowup:['y',-1], arrowdown:['y',1],
+                 a:['x',-1], d:['x',1], w:['y',-1], s:['y',1] };
 document.addEventListener('keydown', e => {
-    if (KEYMAP[e.key]) { const [a,v] = KEYMAP[e.key]; input.dpad[a] = v; e.preventDefault(); }
     const k = e.key.toLowerCase();
+    if (KEYMAP[k]) { const [ax,v] = KEYMAP[k]; input.dpad[ax] = v; e.preventDefault(); }
     if (k === 'z') input.attackTap = true;
     if (k === 'x') input.grapTap = true;
     if (k === 'c') input.specialTap = true;
+    if (k === 'p' || k === 'escape') togglePause();
+    if (k === 'enter' && M.phase === 'idle' && !document.getElementById('startButton').disabled) startMatch();
 });
 document.addEventListener('keyup', e => {
-    if (KEYMAP[e.key]) { const [a,v] = KEYMAP[e.key]; if (input.dpad[a] === v) input.dpad[a] = 0; }
+    const k = e.key.toLowerCase();
+    if (KEYMAP[k]) { const [ax,v] = KEYMAP[k]; if (input.dpad[ax] === v) input.dpad[ax] = 0; }
 });
+
+// ---------------- PAUSE ----------------
+let paused = false;
+function togglePause() {
+    if (NET.mode !== 'none') return;                    // no pausing online matches
+    if (M.phase !== 'fight' && !paused) return;
+    paused = !paused;
+    const pb = document.getElementById('pauseBtn');
+    if (pb) pb.textContent = paused ? '▶' : '❚❚';
+}
+(() => {
+    const pb = document.getElementById('pauseBtn');
+    pb.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); togglePause(); });
+    pb.addEventListener('mousedown',  e => { e.preventDefault(); e.stopPropagation(); togglePause(); });
+})();
+
+// ---------------- DEVICE ----------------
+const TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+if (!TOUCH) {
+    document.body.classList.add('no-touch');
+    document.querySelector('.hint-text').innerHTML =
+        'MOVE: WASD / ARROWS &nbsp;·&nbsp; Z: ATTACK &nbsp;·&nbsp; X: GRAPPLE / PICK UP / CLIMB &nbsp;·&nbsp; C: SPECIAL &nbsp;·&nbsp; P: PAUSE<br>' +
+        'IN GRAPPLE: DIRECTION + X = THROW, Z = STRIKE &nbsp;·&nbsp; MASH Z TO ESCAPE &amp; KICK OUT';
+}
 
 canvas.addEventListener('touchstart', ringTap);
 canvas.addEventListener('mousedown', ringTap);
@@ -848,7 +950,7 @@ function trySpecial(att, def) {
         def.downTimer = 120; def.fallFace = 'B';
         def.vx = Math.sign(def.x - att.x) * 9;
         Snd.riser();
-        dealDamage(att, def, 25, { text: att.wrestler.special + '!!!', color: '#ff2ea6', size: 22, slam: true, meterGain: 0 });
+        dealDamage(att, def, 25, { text: (att.wrestler.special || 'FINISHER') + '!!!', color: '#ff2ea6', size: 22, slam: true, meterGain: 0 });
         addParticles(def.x, def.y, 26, 5, true);
         addSplat(def.x, def.y); addSplat(def.x + 30, def.y); addSplat(def.x - 30, def.y);
         hitStop(12); shake(14);
@@ -983,6 +1085,7 @@ function dropWeapon(f) {
 
 // ---------------- SIM STEP ----------------
 function step() {
+    if (paused) return;
     if (M.phase === 'over') {
         M.particles = M.particles.filter(p => {
             p.x += p.vx; p.y += p.vy; p.vy += 0.02; p.life--;
@@ -1203,6 +1306,16 @@ function simTick() {
     if (p1.health <= 0 && M.phase === 'fight') { endMatch(p2, 'KNOCKOUT'); return; }
     if (p2.health <= 0 && M.phase === 'fight') { endMatch(p1, 'KNOCKOUT'); return; }
 
+    // time limit: leader wins by decision; dead even = sudden death
+    if (M.phase === 'fight' && M.frame >= TIME_LIMIT * 60) {
+        const h1 = p1.health / p1.maxHealth, h2 = p2.health / p2.maxHealth;
+        if (h1 !== h2) { endMatch(h1 > h2 ? p1 : p2, 'DECISION'); return; }
+        if (M.frame === TIME_LIMIT * 60) {
+            addFx(canvas.width / 2, canvas.height * 0.42 + 60, 'SUDDEN DEATH!', { color: '#ff2255', size: 44, life: 85, rise: false });
+            Snd.bell(2); Snd.crowdPop();
+        }
+    }
+
     NET.sendSnap();
 
     // HUD
@@ -1227,7 +1340,7 @@ function breakPin(g, text) {
 // ---------------- AI ----------------
 function aiUpdate(ai, target) {
     // player on the turnbuckle: smarter AIs walk away from the dive
-    if (target.climb && ai.aiThink <= 0 && Math.random() < DIFF[M.difficulty].aggro * 0.5) {
+    if (target.climb && ai.aiThink <= 0 && Math.random() < DIFF[difficulty].aiAggro * 0.5) {
         ai.aiState = 'retreat'; ai.aiThink = 40;
     }
     if (ai.downTimer > 0) { ai.downTimer--; ai.moving = false; return; }
@@ -1350,7 +1463,7 @@ function trySpecialAI(ai, target) {
     target.downTimer = 110; target.fallFace = 'B';
     target.vx = Math.sign(target.x - ai.x) * 8;
     Snd.riser();
-    dealDamage(ai, target, 20, { text: ai.wrestler.special + '!!!', color: '#ff2ea6', size: 20, slam: true, meterGain: 0 });
+    dealDamage(ai, target, 20, { text: (ai.wrestler.special || 'FINISHER') + '!!!', color: '#ff2ea6', size: 20, slam: true, meterGain: 0 });
     addParticles(target.x, target.y, 22, 5, true);
     hitStop(10); shake(12);
 }
@@ -1388,7 +1501,7 @@ function applyRemote(p, opp) {
     if (inp.grap && p.downTimer <= 0 && (!locked || (M.grapple && M.grapple.holder === p))) {
         performGrappleBtn(p, opp, { x: inp.dx, y: inp.dy });
     }
-    if (inp.special && !locked && p.downTimer <= 0) trySpecial(p, opp);
+    if (inp.special && !locked && p.downTimer <= 0 && !p.climb && p.diveTimer <= 0) trySpecial(p, opp);
     inp.attack = inp.grap = inp.special = false;
 
     // queued taps (already denormalized on receipt)
@@ -1738,32 +1851,33 @@ function drawHUD() {
     const mobile = W < 640;
     const pad = mobile ? 8 : 14;
     const portrait = mobile ? 40 : 52;
+    const chipW = Math.round(portrait * 1.3);          // matches the card photo aspect — whole photo, no crop
     const barH = mobile ? 17 : 24;
-    const barW = mobile ? (W / 2 - pad - portrait - 8 - 42) : Math.min(W * 0.36, 380);
+    const barW = mobile ? (W / 2 - pad - chipW - 8 - 42) : Math.min(W * 0.36, 380);
 
     [[M.p1, false], [M.p2, true]].forEach(([p, rightSide]) => {
-        const x0 = rightSide ? W - pad - portrait - 8 - barW : pad;
-        const px = rightSide ? W - pad - portrait : pad;
-        const bx = rightSide ? x0 : pad + portrait + 8;
+        const x0 = rightSide ? W - pad - chipW - 8 - barW : pad;
+        const px = rightSide ? W - pad - chipW : pad;
+        const bx = rightSide ? x0 : pad + chipW + 8;
         const y0 = 14;
 
-        // portrait chip
+        // portrait chip — full card photo, contain-fit (never cropped)
         ctx.save();
-        roundRect(px, y0, portrait, portrait, 6); ctx.clip();
-        ctx.fillStyle = '#111'; ctx.fillRect(px, y0, portrait, portrait);
+        roundRect(px, y0, chipW, portrait, 6); ctx.clip();
+        ctx.fillStyle = '#111'; ctx.fillRect(px, y0, chipW, portrait);
         const ci = CARD_IMGS[p.wrestler.id];
         if (ci && ci.complete && ci.naturalWidth) {
-            const s = portrait * 2.05 / ci.naturalHeight;
+            const s = Math.min(chipW / ci.naturalWidth, portrait / ci.naturalHeight);
+            const dw = ci.naturalWidth * s, dh = ci.naturalHeight * s;
             ctx.imageSmoothingEnabled = true;
-            ctx.drawImage(ci, px + portrait/2 - ci.naturalWidth*s/2, y0 - portrait * 0.18,
-                          ci.naturalWidth*s, ci.naturalHeight*s);
+            ctx.drawImage(ci, px + (chipW - dw) / 2, y0 + (portrait - dh) / 2, dw, dh);
         }
         ctx.restore();
         ctx.lineWidth = 2.5;
         const hurtFlash = p.ghostHP - p.health > p.maxHealth * 0.01;
         ctx.strokeStyle = hurtFlash && Math.floor(M.frame / 4) % 2 === 0 ? '#ff2222'
                         : (p.isP1 ? '#ffcc33' : '#66aaff');
-        roundRect(px, y0, portrait, portrait, 6); ctx.stroke();
+        roundRect(px, y0, chipW, portrait, 6); ctx.stroke();
 
         // health bar frame
         const by = y0 + 4;
@@ -1800,8 +1914,8 @@ function drawHUD() {
         ctx.fillStyle = '#d6d6d6';
         ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
         const nx = rightSide ? bx + barW : bx;
-        ctx.strokeText(p.wrestler.name.toUpperCase(), nx, by + barH + 16);
-        ctx.fillText(p.wrestler.name.toUpperCase(), nx, by + barH + 16);
+        ctx.strokeText(shortName(p.wrestler).toUpperCase(), nx, by + barH + 16);
+        ctx.fillText(shortName(p.wrestler).toUpperCase(), nx, by + barH + 16);
         let sub = '';
         if (p.weapon) sub = WEAPON_TYPES[p.weapon.type].name + ' x' + p.weapon.durability;
         if (p.combo >= 2) sub = (sub ? sub + '   ' : '') + p.combo + 'x COMBO';
@@ -1813,19 +1927,23 @@ function drawHUD() {
         }
     });
 
-    // timer plate (responsive)
-    const secs = Math.floor(M.frame / 60);
+    // timer plate — counts DOWN to the decision (responsive)
+    const remainF = Math.max(0, TIME_LIMIT * 60 - M.frame);
+    const secs = Math.ceil(remainF / 60);
+    const urgent = secs <= 30;
     const tt = `${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`;
     const tw = mobile ? 62 : 76, th = mobile ? 24 : 30, ty = mobile ? 10 : 12;
     ctx.fillStyle = 'rgba(8,8,8,0.82)';
     roundRect(W/2 - tw/2, ty, tw, th, 6); ctx.fill();
-    ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 2;
+    ctx.strokeStyle = urgent && Math.floor(M.frame / 30) % 2 === 0 ? '#ff2222' : '#d4af37';
+    ctx.lineWidth = 2;
     roundRect(W/2 - tw/2, ty, tw, th, 6); ctx.stroke();
-    ctx.font = `900 ${mobile ? 14 : 17}px Arial`; ctx.textAlign = 'center'; ctx.fillStyle = '#d4af37';
-    ctx.fillText(tt, W/2, ty + th * 0.7);
+    ctx.font = `900 ${mobile ? 14 : 17}px Arial`; ctx.textAlign = 'center';
+    ctx.fillStyle = urgent ? '#ff4444' : '#d4af37';
+    ctx.fillText(remainF <= 0 ? 'S.D.' : tt, W/2, ty + th * 0.7);
 
-    // special meter (bottom right, above controls)
-    const sw = 130, sh = 13, sx = W - pad - sw, sy = canvas.height - 205;
+    // special meter (bottom right, above controls on touch; near bottom on desktop)
+    const sw = 130, sh = 13, sx = W - pad - sw, sy = canvas.height - (TOUCH ? 205 : 48);
     const me = NET.mode === 'guest' ? M.p2 : M.p1;
     const ready = me.specialCharge >= 100;
     ctx.fillStyle = 'rgba(8,8,8,0.82)';
@@ -1849,7 +1967,9 @@ function spriteFor(f) {
     const S = SPRITES[f.wrestler.id];
     if (!S) return null;
     if ((M.phase === 'slowmo' || M.phase === 'over') && M.winner === f && S.aWin && f.downTimer <= 0)
-        return { img: S.aWin, flip: false };                                          // victory pose
+        return { img: S.aWin, flip: false };
+    if ((M.phase === 'slowmo' || M.phase === 'over') && M.winner && M.winner !== f && S.aLose && f.downTimer <= 0)
+        return { img: S.aLose, flip: false };   // standing loser shows the dejected pose
     const pinned = M.grapple && M.grapple.isPin && M.grapple.victim === f;
     if (M.grapple && M.grapple.isPin && M.grapple.holder === f && S.aCrouch)
         return { img: S.aCrouch, flip: f.direction < 0 };                            // covering the pin
@@ -1864,7 +1984,7 @@ function spriteFor(f) {
         const fb = f.fallFace === 'F' ? (S.aFallF || S.fallen) : (S.aFallB || S.fallen);
         return { img: fb, flip: f.direction < 0 };
     }
-    if (f.stunTimer > 0 && S.aStagger) return { img: S.aStagger, flip: false };
+    if (f.stunTimer > 0 && S.aStagger) return { img: S.aStagger, flip: f.direction < 0 };
     if (f.swingTimer > 0) {
         const idx = Math.min(2, Math.floor((18 - f.swingTimer) / 6));
         const pick = (arr) => arr[Math.min(arr.length - 1, idx)];
@@ -1914,7 +2034,7 @@ function render() {
 
     // 1. arena (zoomed on the ring; backfill exposed edges)
     ctx.fillStyle = '#0a0a0a';
-    ctx.fillRect(-50, -CAM.y === 0 ? 0 : -200, canvas.width + 100, canvas.height + 400);
+    ctx.fillRect(-50, -200, canvas.width + 100, canvas.height + 400);
     if (ARENA.complete && ARENA.naturalWidth) {
         ctx.drawImage(ARENA, coverTf.dx, coverTf.dy, coverTf.dw, coverTf.dh);
     } else {
@@ -2000,6 +2120,21 @@ function render() {
 
     // 11. canvas HUD
     drawHUD();
+
+    // 12. pause overlay
+    if (paused) {
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.textAlign = 'center';
+        ctx.font = '900 46px Arial';
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 7;
+        ctx.strokeText('PAUSED', canvas.width / 2, canvas.height / 2);
+        ctx.fillStyle = '#ffcc33';
+        ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+        ctx.font = '900 14px Arial';
+        ctx.fillStyle = '#ccc';
+        ctx.fillText(TOUCH ? 'TAP  ▶  TO RESUME' : 'PRESS P TO RESUME', canvas.width / 2, canvas.height / 2 + 32);
+    }
     ctx.restore();
 }
 
@@ -2037,11 +2172,16 @@ function drawFighter(f) {
         const flip = !!sp.flip;
         const drawY = feetY - h - jumpArc;
 
+        // placeholder wrestlers ride a tinted base body until their own art lands
+        const tintF = (f.wrestler.real === false && f.wrestler.hue)
+            ? `hue-rotate(${f.wrestler.hue}deg) saturate(0.92)` : null;
+
         // motion trail on fast bodies (throws, specials)
         const speed = Math.hypot(f.vx, f.vy);
         if (speed > 6.5) {
             for (let k = 3; k >= 1; k--) {
                 ctx.save();
+                if (tintF) ctx.filter = tintF;
                 ctx.globalAlpha = 0.10 * k;
                 ctx.imageSmoothingEnabled = false;
                 const tx = f.x - f.vx * k * 1.6, ty = drawY - f.vy * k * 1.6;
@@ -2055,6 +2195,7 @@ function drawFighter(f) {
         const ph = pinning && !SPRITES[f.wrestler.id].aCrouch ? h * 0.78 : h;
         const py = drawY + (h - ph);
         ctx.save();
+        if (tintF) ctx.filter = tintF;
         if ((f.stunTimer > 0 || f.invuln > 0) && Math.floor(M.frame / 4) % 2 === 0) ctx.globalAlpha = 0.6;
         ctx.imageSmoothingEnabled = false;
         if (flip) { ctx.translate(f.x, 0); ctx.scale(-1, 1); ctx.drawImage(img, -w / 2, py, w, ph); }
