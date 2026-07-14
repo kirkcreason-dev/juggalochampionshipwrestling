@@ -51,7 +51,9 @@ body { background:#0a0a0a; font-family:Arial,sans-serif; overflow:hidden; height
 .stat-seg.on { background:linear-gradient(180deg,#e33,#900); }
 .start-button { padding:14px 44px; font-size:18px; background:linear-gradient(135deg,#d4af37 0%,#aa8c2c 100%); border:none; color:#000; font-weight:900; text-transform:uppercase; cursor:pointer; border-radius:4px; letter-spacing:1px; }
 .start-button:disabled { opacity:0.4; cursor:not-allowed; }
-#loadingMsg { color:#d4af37; font-size:14px; margin-top:12px; }
+#loadingMsg { color:#d4af37; font-size:12px; font-weight:900; letter-spacing:1px; margin-top:12px; text-align:center; }
+.load-track { width:220px; height:10px; background:#151515; border:2px solid #d4af37; margin:6px auto 0; }
+.load-fill { height:100%; width:0%; background:linear-gradient(90deg,#d4af37,#ffe27a); transition:width 0.15s; }
 .online-row { display:flex; gap:10px; margin-top:12px; }
 .online-btn { padding:10px 16px; font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:1px;
     background:linear-gradient(135deg,#2c2c2c,#161616); color:#8dff1e; border:2px solid #8dff1e; border-radius:4px; cursor:pointer; }
@@ -125,6 +127,8 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
 /* pause + desktop layout */
 .pause-btn { position:absolute; top:50px; left:50%; transform:translateX(-50%); width:40px; height:28px; display:flex; align-items:center; justify-content:center; background:rgba(8,8,8,0.82); border:2px solid #d4af37; border-radius:6px; color:#d4af37; font-size:12px; font-weight:900; z-index:12; pointer-events:auto; cursor:pointer; user-select:none; -webkit-user-select:none; }
 .pause-btn:active { transform:translateX(-50%) scale(0.94); }
+.fs-btn { transform:translateX(calc(-50% + 50px)); font-size:15px; }
+.fs-btn:active { transform:translateX(calc(-50% + 50px)) scale(0.94); }
 body.no-touch .controller { display:none; }
 body.no-touch .hint-text { bottom:12px; }
 </style>
@@ -177,6 +181,7 @@ body.no-touch .hint-text { bottom:12px; }
         <canvas id="gameCanvas"></canvas>
         <div class="hud">
             <div class="pause-btn" id="pauseBtn">❚❚</div>
+            <div class="pause-btn fs-btn" id="fsBtn">⛶</div>
             <div class="hint-text">A: GRAPPLE / PIN / PICK UP<br>IN GRAPPLE: DIR + A = THROW, B = STRIKE<br>B NEAR DOWNED: STOMP<br>MASH B TO ESCAPE &amp; KICK OUT</div>
 
             <div class="intro-overlay hidden" id="introOverlay">
@@ -218,7 +223,7 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-console.log('%cLUNACY UNLOCKED — BUILD 2026-07-13-ROSTER25', 'color:#8dff1e;font-weight:bold');
+console.log('%cLUNACY UNLOCKED — BUILD 2026-07-13-FEEL', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -456,6 +461,17 @@ async function loadAssets() {
         WEAPON_IMGS[n] = loadImg(`sprites/weapons/${n}.png`, jobs);
     });
     STAGES.forEach(s => { STAGE_IMGS[s.id] = loadImg(s.src, jobs); });
+    // progress bar
+    const lm = document.getElementById('loadingMsg');
+    lm.innerHTML = 'LOADING <span id="loadPct">0%</span><div class="load-track"><div class="load-fill" id="loadFill"></div></div>';
+    let loadDone = 0;
+    jobs.forEach(j => j.then(() => {
+        loadDone++;
+        const pct = Math.round(loadDone / jobs.length * 100);
+        const f = document.getElementById('loadFill'), t = document.getElementById('loadPct');
+        if (f) f.style.width = pct + '%';
+        if (t) t.textContent = pct + '%';
+    }));
     await Promise.all(jobs);
     // real art exists when the wrestler has a manifest entry; otherwise alias the base body + tint
     wrestlers.forEach(w => {
@@ -764,6 +780,7 @@ document.addEventListener('keydown', e => {
     if (k === 'x') input.grapTap = true;
     if (k === 'c') input.specialTap = true;
     if (k === 'p' || k === 'escape') togglePause();
+    if (k === 'f') toggleFullscreen();
     if (k === 'enter' && M.phase === 'idle' && !document.getElementById('startButton').disabled) startMatch();
 });
 document.addEventListener('keyup', e => {
@@ -785,6 +802,30 @@ function togglePause() {
     pb.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); togglePause(); });
     pb.addEventListener('mousedown',  e => { e.preventDefault(); e.stopPropagation(); togglePause(); });
 })();
+
+// ---------------- FULLSCREEN ----------------
+function toggleFullscreen() {
+    const doc = document, el = doc.documentElement;
+    if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+        (doc.exitFullscreen || doc.webkitExitFullscreen).call(doc);
+    } else {
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (req) req.call(el).catch(() => {});
+    }
+}
+(() => {
+    const fb = document.getElementById('fsBtn');
+    const el = document.documentElement;
+    if (!el.requestFullscreen && !el.webkitRequestFullscreen) { fb.style.display = 'none'; return; }
+    fb.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); toggleFullscreen(); });
+    fb.addEventListener('mousedown',  e => { e.preventDefault(); e.stopPropagation(); toggleFullscreen(); });
+})();
+
+// ---------------- HAPTICS ----------------
+function buzz(dmg) {
+    if (!navigator.vibrate) return;
+    try { navigator.vibrate(dmg >= 15 ? 60 : dmg >= 8 ? 35 : 15); } catch (e) {}
+}
 
 // ---------------- DEVICE ----------------
 const TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
@@ -858,6 +899,12 @@ function performTap(p1, p2, x, y) {
 }
 
 // ---------------- COMBAT CORE ----------------
+// TECHNIQUE: high-tech wrestlers escape holds and kick out of pins like pros
+const techOf = f => f.wrestler.stats.tech;
+const escNeed   = f => techOf(f) >= 9 ? 2 : techOf(f) >= 6 ? 3 : 4;                 // grapple mashes to break free
+const kickFloor = f => Math.max(0.06, 0.18 - 0.01 * techOf(f));                     // HP floor to kick out of a pin
+const powerOutHP = f => 0.70 - 0.014 * techOf(f);                                   // HP fraction to power out of early pins
+
 function dealDamage(attacker, victim, base, opts = {}) {
     if (victim.climb) {                                     // struck on the ropes: crash down
         victim.climb = null;
@@ -882,6 +929,7 @@ function dealDamage(attacker, victim, base, opts = {}) {
     if (dmg >= 8) addSplat(victim.x, victim.y);
     hitStop(dmg >= 15 ? 7 : dmg >= 10 ? 4 : 2);
     shake(dmg >= 15 ? 9 : dmg >= 10 ? 5 : 2.5);
+    if (victim === M.p1 && NET.mode !== 'guest') buzz(dmg);   // local player took the hit
     if (opts.slam) { Snd.slam(); shake(10); } 
 
     // combo display
@@ -1145,8 +1193,8 @@ function simTick() {
         const g = M.grapple; g.frames++;
         if (g.isPin) {
             g.victim.downTimer = Math.max(g.victim.downTimer, 2);   // stay down while pinned
-            // fresh wrestlers power out of pins almost immediately
-            if (g.victim.health > g.victim.maxHealth * 0.6 && g.frames > 28) {
+            // fresh wrestlers power out of pins almost immediately (easier with high technique)
+            if (g.victim.health > g.victim.maxHealth * powerOutHP(g.victim) && g.frames > 28) {
                 breakPin(g, 'POWERED OUT!');
                 return;
             }
@@ -1159,11 +1207,11 @@ function simTick() {
             }
             if (g.victim === p1) {
                 addFxOnce('mash', g.victim.x, g.victim.y + 34 + g.victim.elev * ringDrop(), 'MASH B!!');
-                if (input.attackTap && g.victim.health > g.victim.maxHealth * 0.12) {
+                if (input.attackTap && g.victim.health > g.victim.maxHealth * kickFloor(g.victim)) {
                     breakPin(g, 'KICK OUT!');
                     input.attackTap = false;
                 }
-            } else if (g.victim === M.p2 && g.victim.health > g.victim.maxHealth * (difficulty === 0 ? 0.4 : difficulty === 2 ? 0.15 : 0.25) && g.frames > 70) {
+            } else if (g.victim === M.p2 && g.victim.health > g.victim.maxHealth * (difficulty === 0 ? 0.4 : difficulty === 2 ? 0.15 : 0.25) && g.frames > 92 - techOf(g.victim) * 4) {
                 breakPin(g, 'KICK OUT!');
             }
             if (M.grapple && g.frames >= 180) {
@@ -1184,7 +1232,7 @@ function simTick() {
             if (g.victim === p1 && input.attackTap) {
                 g.escape = (g.escape || 0) + 1;
                 input.attackTap = false;
-                if (g.escape >= 3) { M.grapple = null; addFx(p1.x, p1.y, 'ESCAPE!', { color: '#66aaff' }); }
+                if (g.escape >= escNeed(p1)) { M.grapple = null; addFx(p1.x, p1.y, 'ESCAPE!', { color: '#66aaff' }); }
             }
             // AI holder auto-throws
             if (g.holder === p2 && g.frames > 45) {
@@ -1485,14 +1533,14 @@ function applyRemote(p, opp) {
 
     // pinned guest mashing attack = kick out (mirrors P1 pin logic handled in grapple block via flags)
     if (inp.attack && M.grapple && M.grapple.isPin && M.grapple.victim === p &&
-        p.health > p.maxHealth * 0.12) {
+        p.health > p.maxHealth * kickFloor(p)) {
         breakPin(M.grapple, 'KICK OUT!');
         inp.attack = false;
     }
     if (inp.attack && M.grapple && !M.grapple.isPin && M.grapple.victim === p) {
         M.grapple.escape = (M.grapple.escape || 0) + 1;
         inp.attack = false;
-        if (M.grapple.escape >= 3) { M.grapple = null; addFx(p.x, p.y, 'ESCAPE!', { color: '#66aaff' }); }
+        if (M.grapple.escape >= escNeed(p)) { M.grapple = null; addFx(p.x, p.y, 'ESCAPE!', { color: '#66aaff' }); }
     }
     if (inp.attack && p.climb) { launchDive(p, opp); inp.attack = false; }
     if (inp.attack && !locked && p.attackCooldown <= 0 && p.downTimer <= 0 && p.diveTimer <= 0) {
@@ -1798,6 +1846,7 @@ const NET = {
                 if (dmg >= 8) addSplat(vx, vy);
                 shake(dmg >= 15 ? 8 : 4);
                 (dmg >= 10 ? Snd.kick : Snd.punch)();
+                if (p === M.p2) buzz(dmg);                    // guest's own fighter took the hit
             }
             if (!this.prevDown[i] && arr[4] > 0) { addFx(this.dx(arr[0]), this.dy(arr[1]), 'DOWN!', { color: '#ff4455' }); Snd.slam(); }
             this.prevHP[i] = arr[3]; this.prevDown[i] = arr[4];
