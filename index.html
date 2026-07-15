@@ -223,7 +223,7 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-console.log('%cLUNACY UNLOCKED — BUILD 2026-07-14-THROWS', 'color:#8dff1e;font-weight:bold');
+console.log('%cLUNACY UNLOCKED — BUILD 2026-07-14-ROSTER31', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -269,9 +269,17 @@ const wrestlers = [
     W('The Green Phantom',             'phantom',  [7,6,6,6],  null,                    { base:'bronson', hue:120 }),
     W('Tommy Grayson',                 'tgrayson', [5,9,8,7],  'T-GIMMICK',             { base:'caleb',   hue:320 }),
     W('Vincenzo',                      'vincenzo', [8,5,6,7],  null,                    { base:'bishop',  hue:220 }),
-    W('Yabo the Clown',                'yabo',     [7,8,7,8],  null,                    { base:'atiba',   hue:40 })
+    W('Yabo the Clown',                'yabo',     [7,8,7,8],  null,                    { base:'atiba',   hue:40 }),
+    // newly approved (updated roster sheet)
+    W('"Big Al" Alice Crowley',        'alice',    [8,6,8,9],  'UNI-LARIAT',            { base:'dani',    hue:280 }),
+    W('Abel',                          'abel',     [7,6,7,8],  'AS ABOVE SO BELOW',     { base:'bronson', hue:20 }),
+    W('Jacksyn',                       'jacksyn',  [6,7,7,8],  'AS ABOVE SO BELOW',     { base:'atiba',   hue:250 }),
+    W('Krule',                         'krule',    [10,5,6,9], null,                    { base:'bishop',  hue:110 }),
+    W('Ruffo the Clown',               'ruffo',    [8,7,7,8],  null,                    { base:'bruce',   hue:300 }),
+    W('Willie Mack',                   'williemack',[7,7,9,8], 'STUNNER',               { base:'bruce',   hue:170 })
 ];
-// not built: Luigi Primo, Sophia Rose (approval: NO) — plus all blank-approval names, pending sign-off
+// not built: Luigi Primo, Sophia Rose (approval: NO) — plus all blank-approval names
+// (Big Vito, HollyHood Haley J, Kongo Kong, Mecha Wolf, Mickie Knuckles, Mr. Happy) pending sign-off
 function shortName(w) { return w.name.replace(/[“"][^"”]*[”"]\s*/g, '').trim(); }
 
 const WEAPON_TYPES = {
