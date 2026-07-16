@@ -239,7 +239,7 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-console.log('%cLUNACY UNLOCKED — BUILD 2026-07-16-WALKDIR', 'color:#8dff1e;font-weight:bold');
+console.log('%cLUNACY UNLOCKED — BUILD 2026-07-16-PINFIX', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -253,7 +253,7 @@ console.log('%cLUNACY UNLOCKED — BUILD 2026-07-16-WALKDIR', 'color:#8dff1e;fon
 function W(name, id, s, special, opts = {}) {
     return {
         name, id, special: special || null,
-        health: 41 + 7 * s[3], speed: 0.65 + 0.05 * s[1], power: 0.65 + 0.05 * s[0],
+        health: 41 + 7 * s[3], speed: (0.65 + 0.05 * s[1]) * 0.75, power: 0.65 + 0.05 * s[0],
         stats: { power: s[0], speed: s[1], tech: s[2], tough: s[3] },
         base: opts.base || null, hue: opts.hue || 0
     };
@@ -709,7 +709,7 @@ function initializeMatch() {
     M.p1 = makeFighter(true);  M.p1.wrestler = gameState.p1Selected;
     M.p2 = makeFighter(false); M.p2.wrestler = gameState.p2Selected;
     [M.p1, M.p2].forEach(p => {
-        p.maxHealth = p.wrestler.health * 4;   // lower = HP drains faster (was *12, then *8)
+        p.maxHealth = p.wrestler.health * 3.6;   // 10% less health (was *4)
         p.health = p.ghostHP = p.maxHealth;
     });
 
@@ -1461,6 +1461,13 @@ function simTick() {
         g.victim.direction = -g.holder.direction;       // stay locked facing each other
         // struggle shimmy
         g.holder.x += Math.sin(g.frames * 0.4) * 0.4;
+    } else if (M.grapple && M.grapple.isPin) {
+        // lock both wrestlers in place during a pin — no gliding
+        const g = M.grapple;
+        g.holder.vx = g.holder.vy = 0;
+        g.victim.vx = g.victim.vy = 0;
+        g.victim.x = g.holder.x + g.holder.direction * 26;
+        g.victim.y = g.holder.y;
     }
 
     // meters
@@ -2187,7 +2194,7 @@ function spriteFor(f) {
         const fast = Math.hypot(f.vx, f.vy) > 3.3;
         const L = fast ? (S.aRunL || S.aWalkL) : S.aWalkL, R = fast ? (S.aRunR || S.aWalkR) : S.aWalkR;
         // Walk/run art is drawn facing LEFT — mirror it when the fighter moves right.
-        if (L && R) return { img: (f.direction < 0 ? L : R)[Math.floor(f.walkAnim) % 4], flip: f.direction > 0 };
+        if (L && R) { const arr = f.direction < 0 ? L : R; return { img: arr[Math.floor(f.walkAnim) % arr.length], flip: f.direction > 0 }; }
         return { img: S.walkR[Math.floor(f.walkAnim) % S.walkR.length], flip: f.direction > 0 };
     }
     return { img: S.aIdle || S.idle, flip: false };
@@ -2372,7 +2379,7 @@ function drawFighter(f) {
         const baseH = isDown
             ? Math.max(50, Math.min(matH * 0.24, canvas.height * 0.11))
             : Math.max(88, Math.min(matH * 0.52, canvas.height * 0.23));
-        const targetH = baseH * depthScale;
+        const targetH = baseH * depthScale * 1.1;   // wrestlers 10% larger
         const scale = targetH / img.naturalHeight;
         const w = img.naturalWidth * scale, h = targetH;
         const flip = !!sp.flip;
