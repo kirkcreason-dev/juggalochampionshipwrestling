@@ -52,9 +52,9 @@ body { background:#0a0a0a; font-family:Arial,sans-serif; overflow:hidden; height
 .start-button { padding:14px 44px; font-size:18px; background:linear-gradient(135deg,#d4af37 0%,#aa8c2c 100%); border:none; color:#000; font-weight:900; text-transform:uppercase; cursor:pointer; border-radius:4px; letter-spacing:1px; }
 .start-button:disabled { opacity:0.4; cursor:not-allowed; }
 #loadingMsg { color:#d4af37; font-size:12px; font-weight:900; letter-spacing:1px; margin-top:12px; text-align:center; }
-.credits { margin-top:16px; text-align:center; font-size:9px; color:#9a9a9a; letter-spacing:1px; text-transform:uppercase; line-height:2; }
-.credits .credits-title { color:#d4af37; font-weight:900; font-size:10px; letter-spacing:4px; margin-bottom:2px; }
-.credits span { color:#d4af37; font-weight:900; margin-right:6px; }
+#credits { margin-top:16px; text-align:center; font-size:9px; color:#9a9a9a; letter-spacing:1px; text-transform:uppercase; line-height:2; transition:opacity 0.6s; }
+#credits .credits-title { color:#d4af37; font-weight:900; font-size:10px; letter-spacing:4px; margin-bottom:2px; }
+#credits span { color:#d4af37; font-weight:900; margin-right:6px; }
 .load-track { width:220px; height:10px; background:#151515; border:2px solid #d4af37; margin:6px auto 0; }
 .load-fill { height:100%; width:0%; background:linear-gradient(90deg,#d4af37,#ffe27a); transition:width 0.15s; }
 .online-row { display:flex; gap:10px; margin-top:12px; }
@@ -193,11 +193,11 @@ body.no-touch .hint-text { bottom:12px; }
         </div>
         <div id="onlineStatus" class="online-status"></div>
         <div id="loadingMsg">Loading...</div>
-        <div class="credits">
+        <div id="credits">
             <div class="credits-title">CREDITS</div>
             <div><span>LEAD DEVELOPER</span> KIRK CREASON</div>
-            <div><span>DEVELOPERS</span> BRANDON PEIN &nbsp;·&nbsp; ANDY MONTGOMERY &nbsp;·&nbsp; CAMEO MATHISON</div>
-            <div><span>SPECIAL THANKS</span> JEFF LANE &nbsp;·&nbsp; ERIC GOLDSTEIN</div>
+            <div><span>DEVELOPERS</span> BRANDON PEIN &nbsp;&middot;&nbsp; ANDY MONTGOMERY &nbsp;&middot;&nbsp; CAMEO MATHISON</div>
+            <div><span>SPECIAL THANKS</span> JEFF LANE &nbsp;&middot;&nbsp; ERIC GOLDSTEIN</div>
         </div>
     </div>
 
@@ -248,7 +248,7 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-console.log('%cLUNACY UNLOCKED — BUILD 2026-07-16-WALKFIX (walk facing, credits, 3-count timing, resize anchoring, corner stunlock, body overlap)', 'color:#8dff1e;font-weight:bold');
+console.log('%cLUNACY UNLOCKED — BUILD 2026-07-16-ROSTERTRIM (roster trim, step animation, loading-screen credits, walk facing, 3-count timing, resize anchoring, corner stunlock, body overlap)', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -302,14 +302,6 @@ const wrestlers = [
     W('Krule',                         'krule',    [10,5,6,9], null,                    { base:'bishop',  hue:110 }),
     W('Ruffo the Clown',               'ruffo',    [8,7,7,8],  null,                    { base:'bruce',   hue:300 }),
     W('Willie Mack',                   'williemack',[7,7,9,8], 'STUNNER',               { base:'bruce',   hue:170 }),
-    // added to match the CHARACTER SELECT mockup
-    W('Big Vito',                      'bigvito',  [9,5,6,10], 'IMPLANT DDT',           { base:'bishop',  hue:20 }),
-    W('Hollywood Haley J',             'haleyj',   [6,7,8,9],  null,                    { base:'dani',    hue:200 }),
-    W('Kongo Kong',                    'kongokong',[10,5,7,9], null,                    { base:'bruce',   hue:60 }),
-    W('Mecha Wolf',                    'mechawolf',[7,7,7,7],  null,                    { base:'atiba',   hue:210 }),
-    W('Mickie Knuckles',              'mickie',   [8,5,6,9],  null,                    { base:'dani',    hue:330 }),
-    W('Mr. Happy',                     'mrhappy',  [10,4,6,8], null,                    { base:'bishop',  hue:280 }),
-    W('Sophia Rose',                   'sophia',   [6,8,8,6],  'SPLIT-LEGGED STUNNER',  { base:'dani',    hue:0 })
 ];
 // not built: Luigi Primo (approval: NO)
 function shortName(w) { return w.name.replace(/[“"][^"”]*[”"]\s*/g, '').trim(); }
@@ -560,6 +552,9 @@ async function loadAssets() {
     });
     spritesReady = true;
     document.getElementById('loadingMsg').textContent = '';
+    // credits live on the loading screen only: fade out once loading is done
+    const cr = document.getElementById('credits');
+    if (cr) { cr.style.opacity = '0'; setTimeout(() => { cr.style.display = 'none'; }, 700); }
     refreshStartButton();
 }
 
@@ -1424,7 +1419,8 @@ function simTick() {
         else p1.vy *= 0.8;
     }
     if (p1.moving) {
-        p1.walkAnim += 0.15;
+        // stride cadence follows actual ground covered — no more foot-skating
+        p1.walkAnim += 0.05 + 0.05 * Math.hypot(p1.vx, p1.vy);
         if (M.frame % 9 === 0) {
             M.particles.push({ x: p1.x + (Math.random()-0.5)*16, y: p1.y + 46 + p1.elev * ringDrop(),
                 vx: -p1.vx * 0.15, vy: -0.4 - Math.random()*0.4, life: 16, maxLife: 16,
@@ -1666,7 +1662,7 @@ function moveToward(ai, tx, ty, spd) {
     ai.vx = dx / d * spd * ai.wrestler.speed * sm;
     ai.vy = dy / d * spd * ai.wrestler.speed * sm;
     ai.moving = true;
-    ai.walkAnim += 0.15;
+    ai.walkAnim += 0.05 + 0.05 * Math.hypot(ai.vx, ai.vy);
 }
 function aiStrike(ai, target, wd) {
     ai.swingTimer = 18;
@@ -1707,7 +1703,7 @@ function applyRemote(p, opp) {
         if (inp.dy !== 0) { p.vy = inp.dy * 2.7 * p.wrestler.speed; p.moving = true; }
         else p.vy *= 0.8;
     }
-    if (p.moving) p.walkAnim += 0.15;
+    if (p.moving) p.walkAnim += 0.05 + 0.05 * Math.hypot(p.vx, p.vy);
     if (p.downTimer > 0) { p.downTimer--; p.vx *= 0.9; p.vy *= 0.9; }
 
     // pinned guest mashing attack = kick out (mirrors P1 pin logic handled in grapple block via flags)
@@ -2004,7 +2000,7 @@ const NET = {
         p.downTimer = arr[4]; p.swingTimer = arr[5]; p.elev = arr[6];
         p.weapon = arr[7] ? { type: arr[7], durability: arr[8] } : null;
         p.moving = !!arr[9];
-        if (p.moving) p.walkAnim += 0.15;
+        if (p.moving) p.walkAnim += 0.22;
         p.jumpTimer = arr[10]; p.specialCharge = arr[11]; p.combo = arr[12];
         p.climb = arr[13] ? { x: p.x, y: p.y } : null;
         p.diveTimer = arr[14] || 0;
@@ -2435,7 +2431,14 @@ function drawFighter(f) {
         const scale = targetH / img.naturalHeight;
         const w = img.naturalWidth * scale, h = targetH;
         const flip = !!sp.flip;
-        const drawY = feetY - h - jumpArc;
+        // procedural step-bounce: the body rises and falls with each stride so walking
+        // reads as steps, not gliding (one bounce per step = 2 art frames)
+        let bob = 0;
+        const inHold = M.grapple && (M.grapple.holder === f || M.grapple.victim === f);
+        if (f.moving && f.downTimer <= 0 && f.stunTimer <= 0 && !f.climb && f.diveTimer <= 0 && !inHold) {
+            bob = Math.abs(Math.sin(f.walkAnim * Math.PI / 2)) * Math.min(6, h * 0.04);
+        }
+        const drawY = feetY - h - jumpArc - bob;
 
         // placeholder wrestlers ride a tinted base body until their own art lands
         const tintF = (f.wrestler.real === false && f.wrestler.hue)
