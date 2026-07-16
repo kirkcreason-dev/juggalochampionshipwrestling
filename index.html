@@ -239,7 +239,7 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-console.log('%cLUNACY UNLOCKED — BUILD 2026-07-15-FIXED38', 'color:#8dff1e;font-weight:bold');
+console.log('%cLUNACY UNLOCKED — BUILD 2026-07-16-RINGZOOM', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -785,13 +785,29 @@ function showVictory() {
 let coverTf = { dx:0, dy:0, dw:1, dh:1 };
 let CAM = { fx: 0, fy: 0, scale: 1.12, tx: 0, ty: 0, init: false };   // follow camera (tracks the player)
 function computeRects() {
-    // WHOLE-LEVEL VIEW: contain-fit the full arena image — nothing off-screen, ever
     const iw = ARENA.naturalWidth || 1672, ih = ARENA.naturalHeight || 941;
     const mt = activeStage.mat;
-    const scale = Math.min(canvas.width / iw, canvas.height / ih);
+    // Portrait phones are much taller than the 16:9 arena, so a plain contain-fit leaves
+    // the ring tiny with big black bars. On portrait we zoom IN on the ring so it fills the
+    // screen (cropping the arena sides / crowd). Desktop/landscape keeps the whole-level view.
+    const portrait = canvas.height > canvas.width * 1.1;
+    let scale, dx, dy;
+    if (portrait) {
+        const ringFrac = mt.x1 - mt.x0;                       // ring width as fraction of arena
+        const targetFrac = Math.min(0.66, ringFrac + 0.18);  // ring + margin should fill the width
+        scale = Math.max(canvas.width / (targetFrac * iw), canvas.height / ih); // fill height too
+        const dw0 = iw * scale;
+        const ringCx = (mt.x0 + mt.x1) / 2;
+        dx = canvas.width / 2 - ringCx * dw0;
+        dx = Math.min(0, Math.max(canvas.width - dw0, dx));  // never expose arena edges
+        const dh0 = ih * scale;
+        dy = Math.min(0, Math.max(canvas.height - dh0, (canvas.height - dh0) / 2));
+    } else {
+        scale = Math.min(canvas.width / iw, canvas.height / ih);
+        dx = (canvas.width - iw * scale) / 2;
+        dy = (canvas.height - ih * scale) / 2;
+    }
     const dw = iw * scale, dh = ih * scale;
-    const dx = (canvas.width - dw) / 2;
-    const dy = (canvas.height - dh) / 2;
     coverTf = { dx, dy, dw, dh };
     matRect = { L: dx + mt.x0 * dw, R: dx + mt.x1 * dw, T: dy + mt.y0 * dh, B: dy + mt.y1 * dh };
     // ringside floor in front of the ring, clamped fully on-screen
