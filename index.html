@@ -239,7 +239,7 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-console.log('%cLUNACY UNLOCKED — BUILD 2026-07-16-RINGZOOM', 'color:#8dff1e;font-weight:bold');
+console.log('%cLUNACY UNLOCKED — BUILD 2026-07-16-WALKDIR', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -2181,6 +2181,9 @@ function spriteFor(f) {
     }
     if (f.jumpTimer > 0) return { img: S.jump, flip: f.direction < 0 };
     if (f.moving) {
+        // Moving UP (away from camera) with little horizontal motion: show the back.
+        if (f.vy < -0.6 && Math.abs(f.vy) >= Math.abs(f.vx) && (S.aIdleB || S.idle))
+            return { img: S.aIdleB || S.idle, flip: false };
         const fast = Math.hypot(f.vx, f.vy) > 3.3;
         const L = fast ? (S.aRunL || S.aWalkL) : S.aWalkL, R = fast ? (S.aRunR || S.aWalkR) : S.aWalkR;
         // Walk/run art is drawn facing LEFT — mirror it when the fighter moves right.
@@ -2231,7 +2234,11 @@ function render() {
     // sprite for both wrestlers instead of two separate bodies
     const gg = M.grapple;
     let pairImg = null, pairFlip = false;
-    if (gg && !gg.isPin && M.phase !== 'over') {
+    // Pair-art (grapple/throw/overhead sprites) bakes in a CLONE of the holder as the opponent,
+    // so it only looks right in a mirror match (same wrestler both sides). For any normal matchup
+    // we skip it and draw BOTH real fighters — otherwise it looks like grappling yourself.
+    const mirrorMatch = gg && gg.holder.wrestler.id === gg.victim.wrestler.id;
+    if (gg && !gg.isPin && mirrorMatch && M.phase !== 'over') {
         const S = SPRITES[gg.holder.wrestler.id] || {};
         const t = gg.throwing;
         const dirR = gg.holder.direction >= 0;
