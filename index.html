@@ -255,7 +255,7 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-console.log('%cLUNACY UNLOCKED — BUILD 2026-07-16-HEALTH90 (10% less health, warehouse ring recalibrated, original camera, select-screen restyle, roster trim, step animation, loading-screen credits, walk facing, 3-count timing, resize anchoring, corner stunlock, body overlap)', 'color:#8dff1e;font-weight:bold');
+console.log('%cLUNACY UNLOCKED — BUILD 2026-07-20-CALIB (K = ring calibration, snappier combat, AI pin cooldown, weapon grip, softer bob/trails, Big Vito & Mr. Happy back, 10% less health, warehouse ring recalibrated, original camera, select-screen restyle, roster trim, step animation, loading-screen credits, walk facing, 3-count timing, resize anchoring, corner stunlock, body overlap)', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -309,6 +309,9 @@ const wrestlers = [
     W('Krule',                         'krule',    [10,5,6,9], null,                    { base:'bishop',  hue:110 }),
     W('Ruffo the Clown',               'ruffo',    [8,7,7,8],  null,                    { base:'bruce',   hue:300 }),
     W('Willie Mack',                   'williemack',[7,7,9,8], 'STUNNER',               { base:'bruce',   hue:170 }),
+    // re-approved
+    W('Big Vito',                      'bigvito',  [9,5,6,10], 'IMPLANT DDT',           { base:'bishop',  hue:20 }),
+    W('Mr. Happy',                     'mrhappy',  [10,4,6,8], null,                    { base:'bishop',  hue:280 })
 ];
 // not built: Luigi Primo (approval: NO)
 function shortName(w) { return w.name.replace(/[“"][^"”]*[”"]\s*/g, '').trim(); }
@@ -651,7 +654,7 @@ function makeFighter(isP1) {
         specialCharge:0, walkAnim:0, moving:false, elev:0,
         combo:0, comboTimer:0,
         // AI
-        aiState:'approach', aiTimer:0, aiThink:0
+        aiState:'approach', aiTimer:0, aiThink:0, aiPinCd:0
     };
 }
 
@@ -889,6 +892,8 @@ document.addEventListener('keydown', e => {
     if (k === 'c') input.specialTap = true;
     if (k === 'p' || k === 'escape') togglePause();
     if (k === 'f') toggleFullscreen();
+    if (k === 'k') toggleCalib();
+    if (k === 'c' && calib.on) { try { navigator.clipboard.writeText(calibString()); addFx(canvas.width / 2, canvas.height * 0.3, 'COPIED!', { color: '#8dff1e', size: 18 }); } catch (e) {} }
     if (k === 'enter' && M.phase === 'idle' && !document.getElementById('startButton').disabled) startMatch();
 });
 document.addEventListener('keyup', e => {
@@ -899,6 +904,7 @@ document.addEventListener('keyup', e => {
 // ---------------- PAUSE ----------------
 let paused = false;
 function togglePause() {
+    if (calib.on) return;                               // K owns pause while calibrating
     if (NET.mode !== 'none') return;                    // no pausing online matches
     if (M.phase !== 'fight' && !paused) return;
     paused = !paused;
@@ -928,6 +934,77 @@ function toggleFullscreen() {
     fb.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); toggleFullscreen(); });
     fb.addEventListener('mousedown',  e => { e.preventDefault(); e.stopPropagation(); toggleFullscreen(); });
 })();
+
+/* ---------------- RING CALIBRATION (dev tool: press K in a match) ----------------
+   The arena art changes; the ring coordinates shouldn't have to be re-measured by hand.
+   K pauses the match and shows the mat rectangle over the arena. Drag the two corner
+   handles onto the mat surface (back-left corner, front-right corner), or drag inside
+   the box to move it. C copies the values; K again saves (this browser remembers via
+   localStorage) and prints the STAGES line to paste into index.html for everyone else. */
+const calib = { on: false, drag: null, ox: 0, oy: 0 };
+const CALIB_KEY = 'jcwRingCalib1';
+(function calibLoad() {
+    try {
+        const c = JSON.parse(localStorage.getItem(CALIB_KEY) || '{}');
+        STAGES.forEach(s => { if (c[s.id]) s.mat = c[s.id]; });
+    } catch (e) {}
+})();
+function calibSave() {
+    try {
+        const c = JSON.parse(localStorage.getItem(CALIB_KEY) || '{}');
+        c[activeStage.id] = activeStage.mat;
+        localStorage.setItem(CALIB_KEY, JSON.stringify(c));
+    } catch (e) {}
+}
+function calibString() {
+    const m = activeStage.mat, f = v => +v.toFixed(3);
+    return activeStage.id + ' mat:{x0:' + f(m.x0) + ',x1:' + f(m.x1) + ',y0:' + f(m.y0) + ',y1:' + f(m.y1) + '}';
+}
+function toggleCalib() {
+    if (NET.mode !== 'none') return;                       // never mid-online-match
+    if (!calib.on && M.phase !== 'fight') return;
+    calib.on = !calib.on;
+    paused = calib.on;
+    calib.drag = null;
+    if (!calib.on) {
+        calibSave();
+        console.log('%cJCW RING CALIBRATION → ' + calibString(), 'color:#8dff1e;font-weight:bold');
+        addFx(canvas.width / 2, canvas.height * 0.3, 'CALIBRATION SAVED', { color: '#8dff1e', size: 20 });
+        const pb = document.getElementById('pauseBtn');
+        if (pb) pb.textContent = '❚❚';
+    }
+}
+function calibPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const cX = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    const cY = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+    return { x: cX / r.width * canvas.width, y: cY / r.height * canvas.height };
+}
+canvas.addEventListener('mousedown', e => {
+    if (!calib.on) return;
+    e.preventDefault(); e.stopPropagation();
+    const p = calibPos(e);
+    if (Math.hypot(p.x - matRect.L, p.y - matRect.T) < 32) calib.drag = 'tl';
+    else if (Math.hypot(p.x - matRect.R, p.y - matRect.B) < 32) calib.drag = 'br';
+    else if (p.x > matRect.L && p.x < matRect.R && p.y > matRect.T && p.y < matRect.B) {
+        calib.drag = 'move'; calib.ox = p.x - matRect.L; calib.oy = p.y - matRect.T;
+    }
+}, true);
+document.addEventListener('mousemove', e => {
+    if (!calib.on || !calib.drag) return;
+    const p = calibPos(e);
+    const fx = x => (x - coverTf.dx) / coverTf.dw;
+    const fy = y => (y - coverTf.dy) / coverTf.dh;
+    const m = activeStage.mat;
+    if (calib.drag === 'tl') { m.x0 = Math.min(fx(p.x), m.x1 - 0.05); m.y0 = Math.min(fy(p.y), m.y1 - 0.02); }
+    else if (calib.drag === 'br') { m.x1 = Math.max(fx(p.x), m.x0 + 0.05); m.y1 = Math.max(fy(p.y), m.y0 + 0.02); }
+    else {
+        const w2 = m.x1 - m.x0, h2 = m.y1 - m.y0;
+        m.x0 = fx(p.x - calib.ox); m.y0 = fy(p.y - calib.oy);
+        m.x1 = m.x0 + w2; m.y1 = m.y0 + h2;
+    }
+});
+document.addEventListener('mouseup', () => { if (calib.on) calib.drag = null; });
 
 // ---------------- HAPTICS ----------------
 function buzz(dmg) {
@@ -962,6 +1039,7 @@ window.addEventListener('resize', checkOrientation);
 canvas.addEventListener('touchstart', ringTap);
 canvas.addEventListener('mousedown', ringTap);
 function ringTap(e) {
+    if (calib.on) return;                               // calibration owns the mouse
     if (M.phase !== 'fight') return;
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
@@ -1085,7 +1163,7 @@ function tryStrike(att, def) {
 
     if (att.weapon) {
         const wd = WEAPON_TYPES[att.weapon.type];
-        att.attackCooldown = 42;
+        att.attackCooldown = 34;
         if (inBand && Math.abs(adx) < wd.range && def.downTimer <= 0 && def.invuln <= 0) {
             def.vx = Math.sign(def.x - att.x) * 8;
             def.stunTimer = 20;
@@ -1101,12 +1179,12 @@ function tryStrike(att, def) {
             if (wd.damage >= 15) { def.downTimer = 90; def.fallFace = 'F'; addFx(def.x, def.y + 18, 'DOWN!', { color: '#ff4455' }); Snd.slam(); }
         } else Snd.whoosh();
     } else {
-        att.attackCooldown = 22;
+        att.attackCooldown = 16;
         if (inBand && Math.abs(adx) < 105 && def.downTimer <= 0 && def.invuln <= 0) {
-            def.vx = Math.sign(def.x - att.x) * 6.5;
+            def.vx = Math.sign(def.x - att.x) * 7.5;
             def.vy = (Math.random() - 0.5) * 2;
             def.invuln = Math.max(def.invuln, 12);   // brief i-frames: no corner stunlock
-            dealDamage(att, def, 4, {});
+            dealDamage(att, def, 5, {});
             Math.random() < 0.5 ? Snd.punch() : Snd.kick();
         } else Snd.whoosh();
     }
@@ -1421,9 +1499,9 @@ function simTick() {
     p1.moving = false;
     if (p1.climb && input.dpad.y > 0) { p1.climb = null; }                 // step down off the ropes
     if (!p1Locked && p1.downTimer <= 0 && p1.stunTimer <= 0 && !p1.climb && p1.diveTimer <= 0) {
-        if (input.dpad.x !== 0) { p1.vx = input.dpad.x * 3.6 * p1.wrestler.speed; p1.direction = input.dpad.x; p1.moving = true; }
+        if (input.dpad.x !== 0) { p1.vx = input.dpad.x * 4.4 * p1.wrestler.speed; p1.direction = input.dpad.x; p1.moving = true; }
         else p1.vx *= 0.8;
-        if (input.dpad.y !== 0) { p1.vy = input.dpad.y * 2.7 * p1.wrestler.speed; p1.moving = true; }
+        if (input.dpad.y !== 0) { p1.vy = input.dpad.y * 3.3 * p1.wrestler.speed; p1.moving = true; }
         else p1.vy *= 0.8;
     }
     if (p1.moving) {
@@ -1561,6 +1639,7 @@ function addFxOnce(key, x, y, text) {
 function breakPin(g, text) {
     M.grapple = null;
     g.victim.downTimer = 0;
+    g.holder.aiPinCd = 170;   // AI waits ~3s before trying another pin
     M.lastPinCount = 0;
     addFx(g.victim.x, g.victim.y, text, { color: '#66aaff', size: 22 });
     Snd.crowdPop();
@@ -1585,15 +1664,22 @@ function aiUpdate(ai, target) {
     ai.moving = false;
     ai.aiThink--;
 
-    // pin downed player - always priority
+    // downed player: only go for the pin when it can actually stick (hurt enough +
+    // cooldown after a kickout) — otherwise put the boots to them. No more pin spam.
+    if (ai.aiPinCd > 0) ai.aiPinCd--;
     if (target.downTimer > 0 && !M.grapple) {
+        const worthPin = ai.aiPinCd <= 0 && target.health < target.maxHealth * 0.6;
         if (dist < 85) {
-            ai.x = target.x - (Math.sign(target.x - ai.x) || ai.direction) * 34;
-            ai.y = target.y + 8;
-            ai.direction = Math.sign(target.x - ai.x) || ai.direction;
-            M.grapple = { holder: ai, victim: target, frames: 0, isPin: true };
-            addFx(target.x, target.y, 'PIN ATTEMPT!', { color: '#ff4455', size: 20 });
-            Snd.crowdPop();
+            if (worthPin) {
+                ai.x = target.x - (Math.sign(target.x - ai.x) || ai.direction) * 34;
+                ai.y = target.y + 8;
+                ai.direction = Math.sign(target.x - ai.x) || ai.direction;
+                M.grapple = { holder: ai, victim: target, frames: 0, isPin: true };
+                addFx(target.x, target.y, 'PIN ATTEMPT!', { color: '#ff4455', size: 20 });
+                Snd.crowdPop();
+                return;
+            }
+            if (ai.attackCooldown <= 0 && tryStomp(ai, target)) ai.attackCooldown = 46;
             return;
         }
         moveToward(ai, target.x, target.y, 2.8); return;
@@ -1706,9 +1792,9 @@ function applyRemote(p, opp) {
     p.moving = false;
     if (p.climb && inp.dy > 0) p.climb = null;
     if (!locked && p.downTimer <= 0 && p.stunTimer <= 0 && !p.climb && p.diveTimer <= 0) {
-        if (inp.dx !== 0) { p.vx = inp.dx * 3.6 * p.wrestler.speed; p.direction = inp.dx; p.moving = true; }
+        if (inp.dx !== 0) { p.vx = inp.dx * 4.4 * p.wrestler.speed; p.direction = inp.dx; p.moving = true; }
         else p.vx *= 0.8;
-        if (inp.dy !== 0) { p.vy = inp.dy * 2.7 * p.wrestler.speed; p.moving = true; }
+        if (inp.dy !== 0) { p.vy = inp.dy * 3.3 * p.wrestler.speed; p.moving = true; }
         else p.vy *= 0.8;
     }
     if (p.moving) p.walkAnim += 0.05 + 0.05 * Math.hypot(p.vx, p.vy);
@@ -2390,8 +2476,37 @@ function render() {
     // 11. canvas HUD
     drawHUD();
 
+    // 11.5 ring calibration overlay
+    if (calib.on) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(141,255,30,0.13)';
+        ctx.fillRect(matRect.L, matRect.T, matRect.R - matRect.L, matRect.B - matRect.T);
+        ctx.strokeStyle = '#8dff1e'; ctx.lineWidth = 2; ctx.setLineDash([8, 6]);
+        ctx.strokeRect(matRect.L, matRect.T, matRect.R - matRect.L, matRect.B - matRect.T);
+        ctx.setLineDash([]);
+        [[matRect.L, matRect.T], [matRect.R, matRect.B]].forEach(([hx2, hy2]) => {
+            ctx.fillStyle = '#8dff1e';
+            ctx.beginPath(); ctx.arc(hx2, hy2, 11, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+        });
+        ctx.font = '900 14px Arial'; ctx.textAlign = 'center';
+        const lines = [
+            'RING CALIBRATION — drag the corner dots onto the mat (back-left + front-right), drag inside to move',
+            calibString(),
+            'C: COPY VALUES   ·   K: SAVE & EXIT'
+        ];
+        lines.forEach((t, i) => {
+            const yy = 84 + i * 24;
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
+            ctx.strokeText(t, canvas.width / 2, yy);
+            ctx.fillStyle = i === 1 ? '#ffe000' : '#8dff1e';
+            ctx.fillText(t, canvas.width / 2, yy);
+        });
+        ctx.restore();
+    }
+
     // 12. pause overlay
-    if (paused) {
+    if (paused && !calib.on) {
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.textAlign = 'center';
@@ -2444,7 +2559,7 @@ function drawFighter(f) {
         let bob = 0;
         const inHold = M.grapple && (M.grapple.holder === f || M.grapple.victim === f);
         if (f.moving && f.downTimer <= 0 && f.stunTimer <= 0 && !f.climb && f.diveTimer <= 0 && !inHold) {
-            bob = Math.abs(Math.sin(f.walkAnim * Math.PI / 2)) * Math.min(6, h * 0.04);
+            bob = Math.abs(Math.sin(f.walkAnim * Math.PI / 2)) * Math.min(3.5, h * 0.025);
         }
         const drawY = feetY - h - jumpArc - bob;
 
@@ -2454,11 +2569,11 @@ function drawFighter(f) {
 
         // motion trail on fast bodies (throws, specials)
         const speed = Math.hypot(f.vx, f.vy);
-        if (speed > 6.5) {
-            for (let k = 3; k >= 1; k--) {
+        if (speed > 8) {                       // only genuinely launched bodies leave a trail
+            for (let k = 2; k >= 1; k--) {
                 ctx.save();
                 if (tintF) ctx.filter = tintF;
-                ctx.globalAlpha = 0.10 * k;
+                ctx.globalAlpha = 0.08 * k;
                 ctx.imageSmoothingEnabled = false;
                 const tx = f.x - f.vx * k * 1.6, ty = drawY - f.vy * k * 1.6;
                 if (flip) { ctx.translate(tx, 0); ctx.scale(-1, 1); ctx.drawImage(img, -w/2, ty, w, h); }
@@ -2466,6 +2581,19 @@ function drawFighter(f) {
                 ctx.restore();
             }
         }
+
+        // held weapon: rests BEHIND the body (reads as gripped, not pasted on top);
+        // sweeps in FRONT only during the swing
+        const drawHeld = () => {
+            if (!(f.weapon && f.downTimer <= 0 && !sp.noHeld && !f.climb)) return;
+            const prog = f.swingTimer > 0 ? (18 - f.swingTimer) / 18 : -1;
+            const rot = prog < 0 ? f.direction * 0.42
+                                 : f.direction * (-0.7 + prog * 2.1);
+            const hx = f.x + f.direction * w * (prog < 0 ? 0.24 : 0.34);
+            const hy = drawY + h * (prog < 0 ? 0.5 : 0.42);
+            drawWeaponSprite(WEAPON_TYPES[f.weapon.type].held, hx, hy, targetH * (prog < 0 ? 0.36 : 0.42), rot, f.direction < 0, true);
+        };
+        if (f.swingTimer <= 0) drawHeld();
 
         const pinning = M.grapple && M.grapple.isPin && M.grapple.holder === f;
         const ph = pinning && !SPRITES[f.wrestler.id].aCrouch ? h * 0.78 : h;
@@ -2478,15 +2606,7 @@ function drawFighter(f) {
         else ctx.drawImage(img, f.x - w / 2, py, w, ph);
         ctx.restore();
 
-        // weapon in hand: grip pivot, wind-up swing arc (skipped when the swing sprite draws the weapon)
-        if (f.weapon && f.downTimer <= 0 && !sp.noHeld && !f.climb) {
-            const prog = f.swingTimer > 0 ? (18 - f.swingTimer) / 18 : -1;
-            const rot = prog < 0 ? f.direction * 0.22
-                                 : f.direction * (-0.7 + prog * 2.1);
-            const hx = f.x + f.direction * w * 0.34;
-            const hy = drawY + h * 0.42;
-            drawWeaponSprite(WEAPON_TYPES[f.weapon.type].held, hx, hy, targetH * 0.42, rot, f.direction < 0, true);
-        }
+        if (f.swingTimer > 0) drawHeld();
     }
 }
 
