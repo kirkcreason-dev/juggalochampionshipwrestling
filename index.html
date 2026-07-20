@@ -261,7 +261,7 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-const BUILD = '2026-07-20-REPORTS';
+const BUILD = '2026-07-20-REPORTS2';
 console.log('%cLUNACY UNLOCKED — BUILD ' + BUILD + ' (press L in a match for the on-screen debug log)', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
@@ -875,12 +875,14 @@ function reportMatch() {
             mode: NET.mode === 'none' ? 'cpu' : 'online',
             diff: difficulty, pid, build: BUILD
         };
+        DBG.log('report posting: ' + body.winner + ' by ' + body.method + '…');
         fetch(FIREBASE_CONFIG.databaseURL + '/reports.json', {
             method: 'POST', keepalive: true,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
-        }).catch(() => {});
-        DBG.log('report sent: ' + body.winner + ' by ' + body.method);
+        }).then(r => DBG.log(r.ok ? 'report saved ✓ (HTTP ' + r.status + ')' :
+                             'report REJECTED (HTTP ' + r.status + ') — check Firebase rules', r.ok ? '' : 'dbg-err'))
+          .catch(e => DBG.log('report failed: ' + e.message, 'dbg-err'));
     } catch (e) {}
 }
 
