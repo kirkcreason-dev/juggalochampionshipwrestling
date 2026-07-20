@@ -152,6 +152,11 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
 .fs-btn:active { transform:translateX(calc(-50% + 50px)) scale(0.94); }
 body.no-touch .controller { display:none; }
 body.no-touch .hint-text { bottom:12px; }
+
+/* debug log (press L) */
+#debugLog { position:absolute; top:58px; left:10px; width:360px; max-height:46%; overflow:hidden; background:rgba(0,0,0,0.74); border:1px solid #454545; border-radius:6px; font:10px/1.5 Menlo,Consolas,monospace; color:#9fe870; padding:6px 8px; z-index:55; pointer-events:none; display:none; white-space:pre-wrap; word-break:break-all; }
+#debugLog .dbg-head { color:#ffe000; border-bottom:1px solid #333; margin-bottom:3px; padding-bottom:2px; }
+#debugLog .dbg-err { color:#ff5555; font-weight:bold; }
 </style>
 </head>
 <body>
@@ -212,6 +217,7 @@ body.no-touch .hint-text { bottom:12px; }
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
         <div class="hud">
+            <div id="debugLog"></div>
             <div class="pause-btn" id="pauseBtn">❚❚</div>
             <div class="pause-btn fs-btn" id="fsBtn">⛶</div>
             <div class="hint-text">A: GRAPPLE / PIN / PICK UP<br>IN GRAPPLE: DIR + A = THROW, UP + A = OVERHEAD, B = STRIKE<br>B NEAR DOWNED: STOMP<br>MASH B TO ESCAPE &amp; KICK OUT</div>
@@ -255,7 +261,8 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-console.log('%cLUNACY UNLOCKED — BUILD 2026-07-20-MUSIC (intro theme, walk follows travel direction, rooted while swinging, dive facing, weapon carry/swing cleanup, no NOT-CHARGED spam, hit stagger, heavier hitstop, committed AI, funhouse ring measured, fallen sprite scale fixed, ~35% less ground time, kickout at 1 not instant, all 3 stages recalibrated, calib tool: reset/cancel/move-handle, strike facing fixed, Mickie Knuckles & Kongo Kong back, K = ring calibration, snappier combat, AI pin cooldown, weapon grip, softer bob/trails, Big Vito & Mr. Happy back, 10% less health, warehouse ring recalibrated, original camera, select-screen restyle, roster trim, step animation, loading-screen credits, walk facing, 3-count timing, resize anchoring, corner stunlock, body overlap)', 'color:#8dff1e;font-weight:bold');
+const BUILD = '2026-07-20-REPORTS';
+console.log('%cLUNACY UNLOCKED — BUILD ' + BUILD + ' (press L in a match for the on-screen debug log)', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -703,8 +710,48 @@ const M = {
 
 const input = { dpad:{x:0,y:0}, attackTap:false, grapTap:false, specialTap:false };
 
+// ---------------- DEBUG LOG (press L in a match) ----------------
+const DBG = (() => {
+    const buf = [];
+    let on = false, el = null, frames = 0, lastFpsT = 0, fps = 0;
+    function log(msg, cls) {
+        const t = (M.frame / 60).toFixed(1).padStart(6, ' ');
+        buf.push({ t, msg: String(msg), cls: cls || '' });
+        if (buf.length > 150) buf.shift();
+        if (on) draw();
+        try { console.debug('[JCW ' + t + 's]', String(msg)); } catch (e) {}
+    }
+    function head() {
+        const pf = p => p ? Math.round(p.x) + ',' + Math.round(p.y) + ' hp' + Math.round(p.health) +
+                           (p.downTimer > 0 ? ' DOWN' : p.stunTimer > 0 ? ' STUN' : '') : '-';
+        return BUILD + ' · ' + (activeStage ? activeStage.id : '-') + ' · ' + canvas.width + 'x' + canvas.height +
+               ' · ' + fps + 'fps · ph:' + M.phase + (M.grapple ? (M.grapple.isPin ? ' PIN' : ' GRAPPLE') + '@' + M.grapple.frames : '') +
+               '\nP1 ' + pf(M.p1) + '  |  P2 ' + pf(M.p2);
+    }
+    function draw() {
+        if (!el) el = document.getElementById('debugLog');
+        if (!el) return;
+        el.innerHTML = '<div class="dbg-head">' + head() + '</div>' +
+            buf.slice(-15).map(b => '<div class="' + b.cls + '">' + b.t + 's ' + b.msg + '</div>').join('');
+    }
+    function toggle() {
+        on = !on;
+        if (!el) el = document.getElementById('debugLog');
+        if (el) el.style.display = on ? 'block' : 'none';
+        if (on) { log('debug log ON — L to hide'); draw(); }
+    }
+    function tick(now) {
+        frames++;
+        if (now - lastFpsT >= 1000) { fps = frames; frames = 0; lastFpsT = now; }
+        if (on && M.frame % 12 === 0) draw();
+    }
+    return { log, toggle, tick, get on() { return on; } };
+})();
+window.addEventListener('error', e => DBG.log('JS ERROR: ' + e.message + ' @' + (e.lineno || '?'), 'dbg-err'));
+
 // ---------------- JUICE HELPERS ----------------
 function addFx(x, y, text, opts = {}) {
+    if (!/^\d+!?$/.test(text)) DBG.log('· ' + text);   // every labeled event flows into the debug log
     M.fx.push({ x, y: y - 60, timer: opts.life || 45, life: opts.life || 45, text,
                 size: opts.size || 17, color: opts.color || '#ffdd00', rise: opts.rise !== false });
 }
@@ -766,6 +813,8 @@ function initializeMatch() {
     M.p1.y = M.p2.y = matRect.T + (matRect.B - matRect.T) * 0.68;
 
     spawnWeapons();
+    DBG.log('MATCH: ' + M.p1.wrestler.id + ' vs ' + M.p2.wrestler.id + ' @ ' + activeStage.id +
+            ' diff:' + difficulty + ' canvas:' + canvas.width + 'x' + canvas.height);
     M.frame = 0; M.grapple = null; M.fx = []; M.particles = []; M.splats = [];
     M.freeze = 0; M.shake = 0; M.lastPinCount = 0;
     M.winner = null;
@@ -798,6 +847,7 @@ function endMatch(winner, method) {
     if (M.p1) { M.p1.climb = null; M.p1.diveTimer = 0; }
     if (M.p2) { M.p2.climb = null; M.p2.diveTimer = 0; }
     M.winner = winner; M.winMethod = method; M.winFrame = M.frame;
+    DBG.log('END: ' + winner.wrestler.id + ' wins by ' + method + ' @ ' + (M.frame / 60).toFixed(1) + 's');
     NET.hostReportEnd();
     M.phase = 'slowmo'; M.slowmoTimer = 90;
     Snd.slam(); shake(14); hitStop(10);
@@ -805,8 +855,38 @@ function endMatch(winner, method) {
     addFx(canvas.width / 2, canvas.height * 0.4 + 60, method + '!',
           { color: '#ff2255', size: 66, life: 90, rise: false });
 }
+// every finished match posts a report to Firebase (viewable on admin.html) — plain REST,
+// no SDK needed, fire-and-forget so it can never stall or break the game
+function reportMatch() {
+    try {
+        if (NET.mode === 'guest') return;                  // online: the host reports
+        if (!FIREBASE_CONFIG.databaseURL) return;
+        let pid = '';
+        try {
+            pid = localStorage.getItem('jcwPid') || '';
+            if (!pid) { pid = Math.random().toString(36).slice(2, 10); localStorage.setItem('jcwPid', pid); }
+        } catch (e) {}
+        const body = {
+            t: Date.now(),
+            p1: M.p1.wrestler.id, p2: M.p2.wrestler.id,
+            winner: M.winner.wrestler.id, method: M.winMethod || '?',
+            secs: Math.round((M.winFrame || M.frame) / 60),
+            stage: activeStage.id,
+            mode: NET.mode === 'none' ? 'cpu' : 'online',
+            diff: difficulty, pid, build: BUILD
+        };
+        fetch(FIREBASE_CONFIG.databaseURL + '/reports.json', {
+            method: 'POST', keepalive: true,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        }).catch(() => {});
+        DBG.log('report sent: ' + body.winner + ' by ' + body.method);
+    } catch (e) {}
+}
+
 function showVictory() {
     M.phase = 'over';
+    reportMatch();
     // report the win to the JCW Lunacy site (Juggalo Locker) when embedded
     try {
         const localP = NET.mode === 'guest' ? M.p2 : M.p1;
@@ -879,6 +959,8 @@ function computeRects() {
                         Math.abs(om.T - matRect.T) > 0.5 || Math.abs(om.B - matRect.B) > 0.5)) {
         const mx = x => matRect.L + (x - om.L) * (matRect.R - matRect.L) / (om.R - om.L);
         const my = y => matRect.T + (y - om.T) * (matRect.B - matRect.T) / (om.B - om.T);
+        DBG.log('re-anchor: mat ' + Math.round(om.L) + ',' + Math.round(om.T) + '/' + Math.round(om.R) + ',' + Math.round(om.B) +
+                ' → ' + Math.round(matRect.L) + ',' + Math.round(matRect.T) + '/' + Math.round(matRect.R) + ',' + Math.round(matRect.B));
         [M.p1, M.p2].forEach(p => {
             if (!p) return;
             p.x = mx(p.x); p.y = my(p.y);
@@ -931,6 +1013,7 @@ document.addEventListener('keydown', e => {
     if (k === 'p' || k === 'escape') togglePause();
     if (k === 'f') toggleFullscreen();
     if (k === 'k') toggleCalib();
+    if (k === 'l') DBG.toggle();
     if (k === 'c' && calib.on) { try { navigator.clipboard.writeText(calibString()); addFx(canvas.width / 2, canvas.height * 0.3, 'COPIED!', { color: '#8dff1e', size: 18 }); } catch (e) {} }
     if (k === 'r' && calib.on) { activeStage.mat = { ...activeStage.matDefault }; addFx(canvas.width / 2, canvas.height * 0.3, 'RESET TO DEFAULTS', { color: '#ffe000', size: 18 }); }
     if (k === 'escape' && calib.on) cancelCalib();
@@ -1012,6 +1095,7 @@ function toggleCalib() {
     }
     if (!calib.on) {
         calibSave();
+        DBG.log('CALIB SAVED: ' + calibString());
         console.log('%cJCW RING CALIBRATION → ' + calibString(), 'color:#8dff1e;font-weight:bold');
         addFx(canvas.width / 2, canvas.height * 0.3, 'CALIBRATION SAVED', { color: '#8dff1e', size: 20 });
         const pb = document.getElementById('pauseBtn');
@@ -1173,6 +1257,8 @@ function dealDamage(attacker, victim, base, opts = {}) {
     const scale = Math.max(0.6, 1 - (attacker.combo - 1) * 0.05);
     const dmg = base * attacker.wrestler.power * scale;
     victim.health = Math.max(0, victim.health - dmg);
+    DBG.log((attacker.isP1 ? 'P1' : 'P2') + ' hit ' + (victim.isP1 ? 'P1' : 'P2') + ' -' + dmg.toFixed(1) +
+            (attacker.combo > 1 ? ' (x' + attacker.combo + ')' : '') + ' → hp ' + Math.round(victim.health));
 
     // juice
     addFx(victim.x + (Math.random()-0.5)*54, victim.y - Math.random()*20, Math.round(dmg).toString(),
@@ -2735,6 +2821,7 @@ function loop(t) {
     lastT = t;
     while (acc >= DT) { step(); acc -= DT; }
     render();
+    DBG.tick(t);
     requestAnimationFrame(loop);
 }
 
