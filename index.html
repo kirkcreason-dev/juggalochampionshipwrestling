@@ -780,6 +780,12 @@ function endMatch(winner, method) {
 }
 function showVictory() {
     M.phase = 'over';
+    // report the win to the JCW Lunacy site (Juggalo Locker) when embedded
+    try {
+        const localP = NET.mode === 'guest' ? M.p2 : M.p1;
+        if (M.winner === localP && window.parent !== window)
+            window.parent.postMessage({ type: 'jcw-win' }, '*');
+    } catch (e) {}
     Snd.bell(3); Snd.crowdPop();
     // confetti burst
     for (let i = 0; i < 90; i++) {
