@@ -255,7 +255,7 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-console.log('%cLUNACY UNLOCKED — BUILD 2026-07-20-STAGES3 (all 3 stages recalibrated, calib tool: reset/cancel/move-handle, strike facing fixed, Mickie Knuckles & Kongo Kong back, K = ring calibration, snappier combat, AI pin cooldown, weapon grip, softer bob/trails, Big Vito & Mr. Happy back, 10% less health, warehouse ring recalibrated, original camera, select-screen restyle, roster trim, step animation, loading-screen credits, walk facing, 3-count timing, resize anchoring, corner stunlock, body overlap)', 'color:#8dff1e;font-weight:bold');
+console.log('%cLUNACY UNLOCKED — BUILD 2026-07-20-FEEL2 (weapon carry/swing cleanup, no NOT-CHARGED spam, hit stagger, heavier hitstop, committed AI, funhouse ring measured, fallen sprite scale fixed, ~35% less ground time, kickout at 1 not instant, all 3 stages recalibrated, calib tool: reset/cancel/move-handle, strike facing fixed, Mickie Knuckles & Kongo Kong back, K = ring calibration, snappier combat, AI pin cooldown, weapon grip, softer bob/trails, Big Vito & Mr. Happy back, 10% less health, warehouse ring recalibrated, original camera, select-screen restyle, roster trim, step animation, loading-screen credits, walk facing, 3-count timing, resize anchoring, corner stunlock, body overlap)', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -330,7 +330,8 @@ const WEAPON_TYPES = {
 const STAGES = [
     // all three stages start from the measured new-art ring position (same generation
     // batch as the warehouse shot) — fine-tune any stage in-game with K and paste back
-    { id:'funhouse',  name:'FUNHOUSE',  src:'ui/arena_funhouse.jpg',  mat:{x0:0.288,x1:0.72,y0:0.431,y1:0.567}, rope:{x0:0.281,x1:0.736,y0:0.395,y1:0.539} },
+    // funhouse ring sits lower + narrower in its art than the warehouse shot (measured from video)
+    { id:'funhouse',  name:'FUNHOUSE',  src:'ui/arena_funhouse.jpg',  mat:{x0:0.27,x1:0.695,y0:0.579,y1:0.669}, rope:{x0:0.26,x1:0.71,y0:0.53,y1:0.645} },
     { id:'lunacy',    name:'LUNACY',    src:'ui/arena_lunacy.jpg',    mat:{x0:0.288,x1:0.72,y0:0.431,y1:0.567}, rope:{x0:0.281,x1:0.736,y0:0.395,y1:0.539} },
     // warehouse ring re-measured against the new wide-shot arena art
     { id:'warehouse', name:'WAREHOUSE', src:'ui/arena_warehouse.jpg', mat:{x0:0.288,x1:0.72,y0:0.431,y1:0.567},  rope:{x0:0.281,x1:0.736,y0:0.395,y1:0.539} }
@@ -1127,7 +1128,7 @@ const powerOutHP = f => 0.70 - 0.014 * techOf(f);                               
 function dealDamage(attacker, victim, base, opts = {}) {
     if (victim.climb) {                                     // struck on the ropes: crash down
         victim.climb = null;
-        victim.downTimer = 80; victim.fallFace = 'B';
+        victim.downTimer = 55; victim.fallFace = 'B';
         addFx(victim.x, victim.y - 30, 'CROTCHED!', { color: '#ff8c1a', size: 16 });
         shake(5);
     }
@@ -1146,8 +1147,8 @@ function dealDamage(attacker, victim, base, opts = {}) {
     if (opts.text) addFx(victim.x, victim.y - 26, opts.text, { color: opts.color || '#fff', size: opts.size || 15 });
     addParticles(victim.x, victim.y, dmg >= 12 ? 14 : 7, 3, dmg >= 15);
     if (dmg >= 8) addSplat(victim.x, victim.y);
-    hitStop(dmg >= 15 ? 7 : dmg >= 10 ? 4 : 2);
-    shake(dmg >= 15 ? 9 : dmg >= 10 ? 5 : 2.5);
+    hitStop(dmg >= 15 ? 9 : dmg >= 10 ? 6 : 4);      // heavier contact freeze — hits feel weighty
+    shake(dmg >= 15 ? 10 : dmg >= 10 ? 6 : 3.5);
     if (victim === M.p1 && NET.mode !== 'guest') buzz(dmg);   // local player took the hit
     if (opts.slam) { Snd.slam(); shake(10); } 
 
@@ -1163,7 +1164,7 @@ function dealDamage(attacker, victim, base, opts = {}) {
     if (victim.health > 0 && victim.health < victim.maxHealth * 0.22 && dmg >= 4 &&
         victim.downTimer <= 0 && Math.random() < 0.25) {
         attacker.combo = 0; attacker.comboTimer = 0;   // knockdown ends the combo
-        victim.downTimer = 85; victim.fallFace = opts.slam ? 'B' : 'F';
+        victim.downTimer = 55; victim.fallFace = opts.slam ? 'B' : 'F';
         addFx(victim.x, victim.y + 18, 'DOWN!', { color: '#ff4455', size: 18 });
         Snd.slam(); shake(6);
     }
@@ -1177,7 +1178,7 @@ function tryStrike(att, def) {
     att.strikeKind = (att.strikeKind === undefined ? 0 : att.strikeKind + 1) % 3;   // elbow → punch → kick
     const adx = def.x - att.x, ady = def.y - att.y;
     att.direction = Math.sign(adx) || att.direction;
-    att.vx += att.direction * 1.8;
+    att.vx += att.direction * 2.6;    // commit into the strike
     att.swingTimer = 18;
     const inBand = Math.abs(ady) < 55;
 
@@ -1196,7 +1197,7 @@ function tryStrike(att, def) {
                 addParticles(def.x, def.y, 10, 3, false);
                 att.weapon = null;
             }
-            if (wd.damage >= 15) { def.downTimer = 90; def.fallFace = 'F'; addFx(def.x, def.y + 18, 'DOWN!', { color: '#ff4455' }); Snd.slam(); }
+            if (wd.damage >= 15) { def.downTimer = 60; def.fallFace = 'F'; addFx(def.x, def.y + 18, 'DOWN!', { color: '#ff4455' }); Snd.slam(); }
         } else Snd.whoosh();
     } else {
         att.attackCooldown = 16;
@@ -1204,6 +1205,7 @@ function tryStrike(att, def) {
             def.vx = Math.sign(def.x - att.x) * 7.5;
             def.vy = (Math.random() - 0.5) * 2;
             def.invuln = Math.max(def.invuln, 12);   // brief i-frames: no corner stunlock
+            def.stunTimer = Math.max(def.stunTimer, 12);   // stagger: hits visibly LAND now
             dealDamage(att, def, 5, {});
             Math.random() < 0.5 ? Snd.punch() : Snd.kick();
         } else Snd.whoosh();
@@ -1211,12 +1213,12 @@ function tryStrike(att, def) {
 }
 
 function trySpecial(att, def) {
-    if (att.specialCharge < 100) { addFx(att.x, att.y - 30, 'NOT CHARGED', { color: '#888', size: 12 }); return; }
+    if (att.specialCharge < 100) { addFxOnce('notchg', att.x, att.y + 30, 'NOT CHARGED'); return; }   // no stacking spam when Y is mashed
     att.direction = Math.sign(def.x - att.x) || att.direction;
     att.swingTimer = 18;
     if (Math.abs(def.y - att.y) < 70 && Math.abs(def.x - att.x) < 150 && def.invuln <= 0) {
         att.specialCharge = 0;
-        def.downTimer = 120; def.fallFace = 'B';
+        def.downTimer = 80; def.fallFace = 'B';
         def.vx = Math.sign(def.x - att.x) * 9;
         Snd.riser();
         dealDamage(att, def, 25, { text: (att.wrestler.special || 'FINISHER') + '!!!', color: '#ff2ea6', size: 22, slam: true, meterGain: 0 });
@@ -1248,14 +1250,14 @@ function resolveThrow(g) {
     if (t.kind === 'over') {
         o.x = p.x - p.direction * 20;
         o.vx = -p.direction * 3.5; o.vy = 2.5;
-        o.downTimer = 95; o.fallFace = 'B';
+        o.downTimer = 62; o.fallFace = 'B';
         dealDamage(p, o, 12, { text: 'OVERHEAD THROW!!', slam: true, meterGain: 10 });
         shake(8);
     } else {
         const dx = t.dx || p.direction, dy = t.dy || 0;
         const d = Math.hypot(dx, dy) || 1;
         o.vx = dx / d * 13; o.vy = dy / d * 8;
-        o.downTimer = 75; o.fallFace = 'B';
+        o.downTimer = 50; o.fallFace = 'B';
         dealDamage(p, o, 9, { text: (t.dx || t.dy) ? 'THROWN!' : 'SLAMMED!', slam: true });
     }
     if (o.weapon) dropWeapon(o);
@@ -1295,7 +1297,7 @@ function resolveDive(p, o) {
     const hit = o.downTimer <= 0 && o.invuln <= 0 && !o.climb &&
                 Math.abs(o.x - p.x) < 78 && Math.abs(o.y - p.y) < 60;
     if (hit) {
-        o.downTimer = 95; o.fallFace = 'B';
+        o.downTimer = 62; o.fallFace = 'B';
         o.vx = Math.sign(o.x - p.x || p.direction) * 5;
         dealDamage(p, o, 16, { text: 'TOP ROPE DIVE!!', color: '#ffdd00', size: 21, slam: true, meterGain: 14 });
         Snd.crowdPop(); shake(9);
@@ -1431,7 +1433,7 @@ function simTick() {
         if (p.stunTimer > 0) p.stunTimer--;
         if (p.jumpTimer > 0) p.jumpTimer--;
         if (p.invuln > 0) p.invuln--;
-        if (p.downTimer === 1) p.invuln = 32;   // brief safety on get-up
+        if (p.downTimer === 1) p.invuln = 20;   // brief safety on get-up
         if (p.comboTimer > 0) { p.comboTimer--; if (p.comboTimer === 0) p.combo = 0; }
     });
     if (p1.downTimer > 0) { p1.downTimer--; p1.vx *= 0.9; p1.vy *= 0.9; }
@@ -1442,8 +1444,8 @@ function simTick() {
         if (g.isPin) {
             g.victim.downTimer = Math.max(g.victim.downTimer, 2);   // stay down while pinned
             // fresh wrestlers power out of pins almost immediately (easier with high technique)
-            if (g.victim.health > g.victim.maxHealth * powerOutHP(g.victim) && g.frames > 28) {
-                breakPin(g, 'POWERED OUT!');
+            if (g.victim.health > g.victim.maxHealth * powerOutHP(g.victim) && g.frames > 62) {
+                breakPin(g, 'POWERED OUT!');   // healthy wrestlers escape just after the 1-count
                 return;
             }
             // ref counts a full second AFTER the shoulders go down: "1" at 60f, "2" at 120f,
@@ -1708,10 +1710,11 @@ function aiUpdate(ai, target) {
     if (ai.aiThink <= 0) {
         ai.aiThink = 26 + Math.random() * 30;
         const r = Math.random();
-        if (ai.health < ai.maxHealth * 0.3 && r < 0.3) ai.aiState = 'retreat';
-        else if (!ai.weapon && r < 0.26 && M.weaponsOnGround.length) ai.aiState = 'weapon';
-        else if (r < 0.14) ai.aiState = 'reset';       // walk back toward mid-ring
-        else if (r < 0.36) ai.aiState = 'strafe';
+        // committed fighter: mostly comes AT you — dithering states are the exception
+        if (ai.health < ai.maxHealth * 0.3 && r < 0.22) ai.aiState = 'retreat';
+        else if (!ai.weapon && r < 0.2 && M.weaponsOnGround.length) ai.aiState = 'weapon';
+        else if (r < 0.08) ai.aiState = 'reset';       // walk back toward mid-ring
+        else if (r < 0.2) ai.aiState = 'strafe';
         else ai.aiState = 'approach';
         ai.circleDir = Math.random() < 0.5 ? 1 : -1;
     }
@@ -1745,7 +1748,7 @@ function aiUpdate(ai, target) {
             const wd = ai.weapon ? WEAPON_TYPES[ai.weapon.type] : null;
             const range = wd ? wd.range : 100;
             if (Math.abs(dy) > 40 || Math.abs(dx) > range - 10) {
-                moveToward(ai, target.x - Math.sign(dx) * (range * 0.6), target.y, 2.3 + aggression);
+                moveToward(ai, target.x - Math.sign(dx) * (range * 0.6), target.y, 3.0 + aggression);
             } else if (ai.attackCooldown > 8 && target.downTimer <= 0) {
                 // circle the opponent while the arm reloads
                 moveToward(ai, target.x - Math.sign(dx) * range * 0.7, target.y + (ai.circleDir || 1) * 55, 1.7);
@@ -1763,7 +1766,7 @@ function aiUpdate(ai, target) {
                 } else {
                     aiStrike(ai, target, wd);
                 }
-                ai.attackCooldown = Math.max(38, 68 - aggression * 24);
+                ai.attackCooldown = Math.max(26, 54 - aggression * 22);
             }
         }
     }
@@ -1786,18 +1789,19 @@ function aiStrike(ai, target, wd) {
     target.vx = Math.sign(target.x - ai.x) * 6.5;
     target.vy = (Math.random() - 0.5) * 2;
     target.invuln = Math.max(target.invuln, 16);   // brief i-frames: no corner stunlock
+    target.stunTimer = Math.max(target.stunTimer, 12);   // stagger: hits visibly LAND now
     dealDamage(ai, target, dmg / ai.wrestler.power, { text: wd ? wd.name + '!' : null, meterGain: 6 });
     if (wd) {
         (Snd[wd.sfx === 'guitar' ? 'guitarSmash' : wd.sfx] || Snd.whack)();
         ai.weapon.durability--;
         if (ai.weapon.durability <= 0) ai.weapon = null;
-        if (wd.damage >= 15) { target.downTimer = 80; target.fallFace = 'F'; Snd.slam(); }
+        if (wd.damage >= 15) { target.downTimer = 55; target.fallFace = 'F'; Snd.slam(); }
     } else Snd.punch();
 }
 function trySpecialAI(ai, target) {
     ai.specialCharge = 0;
     ai.swingTimer = 18;
-    target.downTimer = 110; target.fallFace = 'B';
+    target.downTimer = 72; target.fallFace = 'B';
     target.vx = Math.sign(target.x - ai.x) * 8;
     Snd.riser();
     dealDamage(ai, target, 20, { text: (ai.wrestler.special || 'FINISHER') + '!!!', color: '#ff2ea6', size: 20, slam: true, meterGain: 0 });
@@ -2572,10 +2576,17 @@ function drawFighter(f) {
 
     if (img && img.complete && img.naturalWidth) {
         const isDown = f.downTimer > 0 || (M.grapple && M.grapple.isPin && M.grapple.victim === f);
-        const baseH = isDown
-            ? Math.max(50, Math.min(matH * 0.24, canvas.height * 0.11))
-            : Math.max(88, Math.min(matH * 0.52, canvas.height * 0.23));
-        const targetH = baseH * depthScale * 1.1;   // wrestlers 10% larger
+        const standH = Math.max(88, Math.min(matH * 0.52, canvas.height * 0.23));
+        let targetH;
+        if (isDown && img.naturalWidth > img.naturalHeight) {
+            // lying art is sideways (wide, short). Size it so the BODY LENGTH matches the
+            // standing height — wrestlers used to balloon to ~2.5x the moment they fell.
+            targetH = standH * 1.02 * (img.naturalHeight / img.naturalWidth) * depthScale * 1.1;
+        } else if (isDown) {
+            targetH = Math.max(50, Math.min(matH * 0.24, canvas.height * 0.11)) * depthScale * 1.1;
+        } else {
+            targetH = standH * depthScale * 1.1;    // wrestlers 10% larger
+        }
         const scale = targetH / img.naturalHeight;
         const w = img.naturalWidth * scale, h = targetH;
         const flip = !!sp.flip;
@@ -2612,11 +2623,15 @@ function drawFighter(f) {
         const drawHeld = () => {
             if (!(f.weapon && f.downTimer <= 0 && !sp.noHeld && !f.climb)) return;
             const prog = f.swingTimer > 0 ? (18 - f.swingTimer) / 18 : -1;
-            const rot = prog < 0 ? f.direction * 0.42
-                                 : f.direction * (-0.7 + prog * 2.1);
-            const hx = f.x + f.direction * w * (prog < 0 ? 0.24 : 0.34);
-            const hy = drawY + h * (prog < 0 ? 0.5 : 0.42);
-            drawWeaponSprite(WEAPON_TYPES[f.weapon.type].held, hx, hy, targetH * (prog < 0 ? 0.36 : 0.42), rot, f.direction < 0, true);
+            // round/bulky items (lid, can, guitar) THRUST forward instead of the big
+            // overhead arc — the arc spun them through the wrestler's own torso
+            const round = f.weapon.type === 'lid' || f.weapon.type === 'trashcan' || f.weapon.type === 'guitar';
+            const rot = prog < 0 ? f.direction * 0.5
+                                 : f.direction * (round ? (-0.25 + prog * 0.9) : (-0.7 + prog * 2.1));
+            // resting: carried low at the far hand (hip height, tucked behind the body)
+            const hx = f.x + f.direction * w * (prog < 0 ? 0.38 : (round ? 0.46 : 0.34));
+            const hy = drawY + h * (prog < 0 ? 0.6 : 0.42);
+            drawWeaponSprite(WEAPON_TYPES[f.weapon.type].held, hx, hy, targetH * (prog < 0 ? 0.34 : 0.42), rot, f.direction < 0, true);
         };
         if (f.swingTimer <= 0) drawHeld();
 
