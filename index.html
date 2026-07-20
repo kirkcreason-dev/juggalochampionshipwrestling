@@ -23,12 +23,17 @@ body { background:#0a0a0a; font-family:Arial,sans-serif; overflow:hidden; height
 #characterSelect > * { position:relative; z-index:1; }
 .title-img { width:min(90vw,520px); margin-bottom:10px; image-rendering:pixelated; }
 .vs-row { display:flex; align-items:center; gap:16px; margin-bottom:12px; font-size:13px; color:#d4af37; font-weight:bold; text-shadow:1px 1px 2px #000; }
-.roster-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px; width:100%; max-width:640px; margin-bottom:12px; }
-.wrestler-card { border:3px solid #6a6a6a; border-radius:6px; cursor:pointer; transition:all 0.12s; overflow:hidden; position:relative; background:#111; }
+.roster-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:9px; width:100%; max-width:780px; margin-bottom:12px; }
+.wrestler-card { border:3px solid #71757c; border-radius:9px; cursor:pointer; transition:all 0.12s; overflow:hidden; position:relative; background:linear-gradient(180deg,#232327,#101014); box-shadow:inset 0 0 0 2px #2e3136, inset 0 2px 5px rgba(255,255,255,0.08), 0 4px 10px rgba(0,0,0,0.6); }
+.wrestler-card::before { content:''; position:absolute; inset:0; pointer-events:none; z-index:2; background:
+    radial-gradient(circle at 8px 8px, #a6acb5 0 2.2px, rgba(0,0,0,0.35) 2.8px, transparent 3.6px),
+    radial-gradient(circle at calc(100% - 8px) 8px, #a6acb5 0 2.2px, rgba(0,0,0,0.35) 2.8px, transparent 3.6px),
+    radial-gradient(circle at 8px calc(100% - 8px), #a6acb5 0 2.2px, rgba(0,0,0,0.35) 2.8px, transparent 3.6px),
+    radial-gradient(circle at calc(100% - 8px) calc(100% - 8px), #a6acb5 0 2.2px, rgba(0,0,0,0.35) 2.8px, transparent 3.6px); }
 .wrestler-card img { width:100%; display:block; image-rendering:pixelated; }
-.wrestler-card .card-name { display:flex; align-items:center; justify-content:center; min-height:24px; text-align:center; font-size:8px; font-weight:900; text-transform:uppercase; color:#ddd; letter-spacing:0.5px; background:linear-gradient(180deg,#3a3a3a,#1c1c1c); padding:3px 2px; border-top:2px solid #555; line-height:1.2; }
-.wrestler-card:hover { border-color:#ffcc33; box-shadow:0 0 14px rgba(255,204,51,0.5); }
-.wrestler-card.sel1 { border-color:#ffcc33; box-shadow:0 0 18px rgba(255,204,51,0.8); }
+.wrestler-card .card-name { display:flex; align-items:center; justify-content:center; min-height:26px; text-align:center; font-size:8px; font-weight:900; text-transform:uppercase; color:#ececec; letter-spacing:1px; background:linear-gradient(180deg,#43474d,#1d1f22); padding:3px 2px; border-top:2px solid #5d6167; line-height:1.2; text-shadow:1px 1px 1px #000; }
+.wrestler-card:hover { border-color:#ff2ea6; box-shadow:0 0 16px rgba(255,46,166,0.55), inset 0 0 0 2px #2e3136; }
+.wrestler-card.sel1 { border-color:#ffcc33; box-shadow:0 0 10px rgba(255,204,51,0.9), 0 0 24px rgba(255,46,166,0.5); }
 .wrestler-card.sel1::after { content:'1P'; position:absolute; top:4px; left:6px; color:#ffcc33; font-weight:900; font-size:13px; text-shadow:1px 1px 2px #000; }
 .wrestler-card.sel2 { border-color:#4488ff; box-shadow:0 0 18px rgba(68,136,255,0.8); }
 .wrestler-card.sel2::after { content:'2P'; position:absolute; top:4px; left:6px; color:#4488ff; font-weight:900; font-size:13px; text-shadow:1px 1px 2px #000; }
@@ -39,17 +44,19 @@ body { background:#0a0a0a; font-family:Arial,sans-serif; overflow:hidden; height
 .stage-thumb span { display:block; font-size:8px; font-weight:900; color:#bbb; text-transform:uppercase; padding:3px 0; background:#1c1c1c; letter-spacing:1px; }
 .stage-thumb:hover { border-color:#ffcc33; }
 .stage-thumb.sel { border-color:#ffcc33; box-shadow:0 0 10px rgba(255,204,51,0.6); }
-.stats-panel { display:flex; align-items:center; gap:14px; width:100%; max-width:540px; background:linear-gradient(180deg,rgba(28,28,28,0.95),rgba(12,12,12,0.95)); border:3px solid #555; border-radius:8px; padding:8px 12px; margin-bottom:12px; min-height:118px; }
+.stats-panel { display:flex; align-items:center; gap:14px; width:100%; max-width:640px; background:linear-gradient(180deg,#232327,#0f0f12); border:3px solid #6a6e74; border-radius:10px; padding:8px 12px; margin-bottom:12px; min-height:118px; box-shadow:inset 0 2px 8px rgba(255,255,255,0.06), 0 6px 14px rgba(0,0,0,0.55); }
 .stats-panel img.big-portrait { height:108px; image-rendering:pixelated; border-radius:4px; }
 .stats-info { flex:1; }
-.stats-name { font-size:20px; font-weight:900; color:#ddd; text-transform:uppercase; letter-spacing:2px; margin-bottom:2px; text-shadow:2px 2px 2px #000; }
+.stats-name { font-size:20px; font-weight:900; color:#f2f2f2; text-transform:uppercase; letter-spacing:2px; margin-bottom:2px; text-shadow:2px 2px 0 #000, 0 0 14px rgba(255,255,255,0.15); }
 .stats-special { font-size:10px; font-weight:900; color:#ff44aa; text-transform:uppercase; margin-bottom:6px; letter-spacing:1px; }
 .stat-row { display:flex; align-items:center; gap:6px; margin-bottom:3px; }
 .stat-label { width:78px; font-size:10px; font-weight:900; color:#ffcc33; text-transform:uppercase; }
-.stat-bar { flex:1; height:10px; background:#1a1a1a; border:1px solid #555; display:flex; gap:2px; padding:1px; }
+.stat-bar { flex:1; height:11px; background:#101013; border:1px solid #3c4046; display:flex; gap:3px; padding:1px; }
 .stat-seg { flex:1; background:#2a2a2a; }
-.stat-seg.on { background:linear-gradient(180deg,#e33,#900); }
-.start-button { padding:14px 44px; font-size:18px; background:linear-gradient(135deg,#d4af37 0%,#aa8c2c 100%); border:none; color:#000; font-weight:900; text-transform:uppercase; cursor:pointer; border-radius:4px; letter-spacing:1px; }
+.stat-seg.on { background:linear-gradient(180deg,#ff3b30,#a80000); box-shadow:0 0 5px rgba(255,60,40,0.45); }
+.start-button { width:100%; max-width:640px; padding:14px 24px; font-size:17px; background:linear-gradient(180deg,#232327,#0e0e10); border:3px solid #6a6e74; border-radius:8px; color:#8dff1e; font-weight:900; text-transform:uppercase; cursor:pointer; letter-spacing:3px; text-shadow:0 0 12px rgba(141,255,30,0.5), 2px 2px 0 #000; box-shadow:inset 0 2px 6px rgba(255,255,255,0.07), 0 4px 12px rgba(0,0,0,0.6); }
+.start-button::before { content:'\2605 \2605 \2605'; color:#8dff1e; margin-right:16px; font-size:12px; vertical-align:2px; text-shadow:0 0 8px rgba(141,255,30,0.7); }
+.start-button::after { content:'\2605 \2605 \2605'; color:#ff2ea6; margin-left:16px; font-size:12px; vertical-align:2px; text-shadow:0 0 8px rgba(255,46,166,0.7); }
 .start-button:disabled { opacity:0.4; cursor:not-allowed; }
 #loadingMsg { color:#d4af37; font-size:12px; font-weight:900; letter-spacing:1px; margin-top:12px; text-align:center; }
 #credits { margin-top:16px; text-align:center; font-size:9px; color:#9a9a9a; letter-spacing:1px; text-transform:uppercase; line-height:2; transition:opacity 0.6s; }
@@ -179,10 +186,10 @@ body.no-touch .hint-text { bottom:12px; }
             <div class="stats-info">
                 <div class="stats-name" id="statsName">SELECT YOUR FIGHTER</div>
                 <div class="stats-special" id="statsSpecial">&nbsp;</div>
-                <div class="stat-row"><div class="stat-label">POWER</div><div class="stat-bar" id="barPower"></div></div>
-                <div class="stat-row"><div class="stat-label">SPEED</div><div class="stat-bar" id="barSpeed"></div></div>
-                <div class="stat-row"><div class="stat-label">TECHNIQUE</div><div class="stat-bar" id="barTech"></div></div>
-                <div class="stat-row"><div class="stat-label">TOUGHNESS</div><div class="stat-bar" id="barTough"></div></div>
+                <div class="stat-row"><div class="stat-label" style="color:#ffe000;">POWER</div><div class="stat-bar" id="barPower"></div></div>
+                <div class="stat-row"><div class="stat-label" style="color:#ff2ea6;">SPEED</div><div class="stat-bar" id="barSpeed"></div></div>
+                <div class="stat-row"><div class="stat-label" style="color:#8dff1e;">TECHNIQUE</div><div class="stat-bar" id="barTech"></div></div>
+                <div class="stat-row"><div class="stat-label" style="color:#66aaff;">TOUGHNESS</div><div class="stat-bar" id="barTough"></div></div>
             </div>
         </div>
         <button class="start-button" id="startButton" disabled>START MATCH (VS CPU)</button>
@@ -248,7 +255,7 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-console.log('%cLUNACY UNLOCKED — BUILD 2026-07-16-ROSTERTRIM (roster trim, step animation, loading-screen credits, walk facing, 3-count timing, resize anchoring, corner stunlock, body overlap)', 'color:#8dff1e;font-weight:bold');
+console.log('%cLUNACY UNLOCKED — BUILD 2026-07-16-HEALTH90 (10% less health, warehouse ring recalibrated, original camera, select-screen restyle, roster trim, step animation, loading-screen credits, walk facing, 3-count timing, resize anchoring, corner stunlock, body overlap)', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -318,7 +325,8 @@ const WEAPON_TYPES = {
 const STAGES = [
     { id:'funhouse',  name:'FUNHOUSE',  src:'ui/arena_funhouse.jpg',  mat:{x0:0.345,x1:0.71,y0:0.47,y1:0.615}, rope:{x0:0.27,x1:0.77,y0:0.545,y1:0.66} },
     { id:'lunacy',    name:'LUNACY',    src:'ui/arena_lunacy.jpg',    mat:{x0:0.315,x1:0.71,y0:0.385,y1:0.60},  rope:{x0:0.25,x1:0.78,y0:0.50,y1:0.645} },
-    { id:'warehouse', name:'WAREHOUSE', src:'ui/arena_warehouse.jpg', mat:{x0:0.315,x1:0.71,y0:0.46,y1:0.595},  rope:{x0:0.28,x1:0.76,y0:0.545,y1:0.655} }
+    // warehouse ring re-measured against the new wide-shot arena art
+    { id:'warehouse', name:'WAREHOUSE', src:'ui/arena_warehouse.jpg', mat:{x0:0.288,x1:0.72,y0:0.431,y1:0.567},  rope:{x0:0.281,x1:0.736,y0:0.395,y1:0.539} }
 ];
 // portraits for canvas HUD (placeholders start on their base body's art; tinted copies swap in after load)
 const CARD_IMGS = {};
@@ -713,7 +721,7 @@ function initializeMatch() {
     M.p1 = makeFighter(true);  M.p1.wrestler = gameState.p1Selected;
     M.p2 = makeFighter(false); M.p2.wrestler = gameState.p2Selected;
     [M.p1, M.p2].forEach(p => {
-        p.maxHealth = p.wrestler.health * 3.6;   // 10% less health (was *4)
+        p.maxHealth = p.wrestler.health * 3.24;  // 10% less health again (was *3.6, originally *4)
         p.health = p.ghostHP = p.maxHealth;
     });
 
