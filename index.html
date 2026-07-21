@@ -136,12 +136,12 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
 
 /* portrait-only: block landscape on touch devices */
 #rotateNotice { display:none; }
-@media (orientation:landscape) and (pointer:coarse) {
+@media (orientation:portrait) and (pointer:coarse) {
     #rotateNotice { display:flex; position:fixed; inset:0; z-index:99999; background:#0a0a0a; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:28px; }
     #container { visibility:hidden; }
 }
 .rotate-icon { font-size:64px; margin-bottom:18px; animation:rotatePhone 2s ease-in-out infinite; }
-@keyframes rotatePhone { 0%,45%{transform:rotate(-90deg);} 65%,100%{transform:rotate(0deg);} }
+@keyframes rotatePhone { 0%,45%{transform:rotate(0deg);} 65%,100%{transform:rotate(-90deg);} }
 .rotate-title { color:#d4af37; font-size:22px; font-weight:900; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px; }
 .rotate-sub { color:#aaa; font-size:14px; text-transform:uppercase; letter-spacing:1px; }
 
@@ -152,18 +152,13 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
 .fs-btn:active { transform:translateX(calc(-50% + 50px)) scale(0.94); }
 body.no-touch .controller { display:none; }
 body.no-touch .hint-text { bottom:12px; }
-
-/* debug log (press L) */
-#debugLog { position:absolute; top:58px; left:10px; width:360px; max-height:46%; overflow:hidden; background:rgba(0,0,0,0.74); border:1px solid #454545; border-radius:6px; font:10px/1.5 Menlo,Consolas,monospace; color:#9fe870; padding:6px 8px; z-index:55; pointer-events:none; display:none; white-space:pre-wrap; word-break:break-all; }
-#debugLog .dbg-head { color:#ffe000; border-bottom:1px solid #333; margin-bottom:3px; padding-bottom:2px; }
-#debugLog .dbg-err { color:#ff5555; font-weight:bold; }
 </style>
 </head>
 <body>
 <div id="rotateNotice">
     <div class="rotate-icon">📱</div>
     <div class="rotate-title">Rotate Your Device</div>
-    <div class="rotate-sub">JCW Lunacy is played in portrait</div>
+    <div class="rotate-sub">JCW Lunacy is played in landscape</div>
 </div>
 <div id="container">
     <!-- CHARACTER SELECT -->
@@ -217,7 +212,6 @@ body.no-touch .hint-text { bottom:12px; }
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
         <div class="hud">
-            <div id="debugLog"></div>
             <div class="pause-btn" id="pauseBtn">❚❚</div>
             <div class="pause-btn fs-btn" id="fsBtn">⛶</div>
             <div class="hint-text">A: GRAPPLE / PIN / PICK UP<br>IN GRAPPLE: DIR + A = THROW, UP + A = OVERHEAD, B = STRIKE<br>B NEAR DOWNED: STOMP<br>MASH B TO ESCAPE &amp; KICK OUT</div>
@@ -261,8 +255,7 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-const BUILD = '2026-07-20-RINGCONTAIN';
-console.log('%cLUNACY UNLOCKED — BUILD ' + BUILD + ' (press L in a match for the on-screen debug log)', 'color:#8dff1e;font-weight:bold');
+console.log('%cLUNACY UNLOCKED — BUILD 2026-07-20-FEEL2 (weapon carry/swing cleanup, no NOT-CHARGED spam, hit stagger, heavier hitstop, committed AI, funhouse ring measured, fallen sprite scale fixed, ~35% less ground time, kickout at 1 not instant, all 3 stages recalibrated, calib tool: reset/cancel/move-handle, strike facing fixed, Mickie Knuckles & Kongo Kong back, K = ring calibration, snappier combat, AI pin cooldown, weapon grip, softer bob/trails, Big Vito & Mr. Happy back, 10% less health, warehouse ring recalibrated, original camera, select-screen restyle, roster trim, step animation, loading-screen credits, walk facing, 3-count timing, resize anchoring, corner stunlock, body overlap)', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
    JCW LUNACY — engine v2 (excellence build)
@@ -508,32 +501,6 @@ const Snd = (() => {
 document.addEventListener('touchstart', Snd.unlock, { once: false });
 document.addEventListener('mousedown', Snd.unlock, { once: false });
 
-// ---------------- MUSIC (intro theme on the select screen) ----------------
-// mp3 (not ogg): Safari has no Ogg Vorbis support. File sits next to index.html.
-const MUSIC = (() => {
-    const a = new Audio('jcw_intro_theme.mp3');
-    a.loop = true; a.preload = 'auto'; a.volume = 0.55;
-    let started = false, fading = null;
-    function start() {
-        if (started || M.phase !== 'idle') return;         // theme belongs to the select screen
-        const p = a.play();
-        if (p && p.then) p.then(() => { started = true; }).catch(() => {});
-        else started = true;
-    }
-    function fadeOut() {
-        if (!started || fading) return;
-        fading = setInterval(() => {
-            a.volume = Math.max(0, a.volume - 0.05);
-            if (a.volume <= 0.01) { a.pause(); clearInterval(fading); fading = null; }
-        }, 60);
-        started = false;
-    }
-    return { start, fadeOut };
-})();
-// browsers only allow audio after a user gesture: first tap/click on the roster starts the theme
-document.addEventListener('touchstart', () => MUSIC.start(), { once: false });
-document.addEventListener('mousedown', () => MUSIC.start(), { once: false });
-
 // ---------------- ASSETS ----------------
 const SPRITES = {};
 const WEAPON_IMGS = {};
@@ -683,7 +650,7 @@ let floorRect = { L:0, R:0, T:0, B:0 };
 
 function makeFighter(isP1) {
     return {
-        climb: null, diveTimer: 0, fallFace: 'B', exitTimer: 0,
+        climb: null, diveTimer: 0, fallFace: 'B',
         isP1, wrestler:null,
         x:0, y:0, vx:0, vy:0, direction: isP1 ? 1 : -1,
         health:100, maxHealth:100, ghostHP:100,
@@ -710,48 +677,8 @@ const M = {
 
 const input = { dpad:{x:0,y:0}, attackTap:false, grapTap:false, specialTap:false };
 
-// ---------------- DEBUG LOG (press L in a match) ----------------
-const DBG = (() => {
-    const buf = [];
-    let on = false, el = null, frames = 0, lastFpsT = 0, fps = 0;
-    function log(msg, cls) {
-        const t = (M.frame / 60).toFixed(1).padStart(6, ' ');
-        buf.push({ t, msg: String(msg), cls: cls || '' });
-        if (buf.length > 150) buf.shift();
-        if (on) draw();
-        try { console.debug('[JCW ' + t + 's]', String(msg)); } catch (e) {}
-    }
-    function head() {
-        const pf = p => p ? Math.round(p.x) + ',' + Math.round(p.y) + ' hp' + Math.round(p.health) +
-                           (p.downTimer > 0 ? ' DOWN' : p.stunTimer > 0 ? ' STUN' : '') : '-';
-        return BUILD + ' · ' + (activeStage ? activeStage.id : '-') + ' · ' + canvas.width + 'x' + canvas.height +
-               ' · ' + fps + 'fps · ph:' + M.phase + (M.grapple ? (M.grapple.isPin ? ' PIN' : ' GRAPPLE') + '@' + M.grapple.frames : '') +
-               '\nP1 ' + pf(M.p1) + '  |  P2 ' + pf(M.p2);
-    }
-    function draw() {
-        if (!el) el = document.getElementById('debugLog');
-        if (!el) return;
-        el.innerHTML = '<div class="dbg-head">' + head() + '</div>' +
-            buf.slice(-15).map(b => '<div class="' + b.cls + '">' + b.t + 's ' + b.msg + '</div>').join('');
-    }
-    function toggle() {
-        on = !on;
-        if (!el) el = document.getElementById('debugLog');
-        if (el) el.style.display = on ? 'block' : 'none';
-        if (on) { log('debug log ON — L to hide'); draw(); }
-    }
-    function tick(now) {
-        frames++;
-        if (now - lastFpsT >= 1000) { fps = frames; frames = 0; lastFpsT = now; }
-        if (on && M.frame % 12 === 0) draw();
-    }
-    return { log, toggle, tick, get on() { return on; } };
-})();
-window.addEventListener('error', e => DBG.log('JS ERROR: ' + e.message + ' @' + (e.lineno || '?'), 'dbg-err'));
-
 // ---------------- JUICE HELPERS ----------------
 function addFx(x, y, text, opts = {}) {
-    if (!/^\d+!?$/.test(text)) DBG.log('· ' + text);   // every labeled event flows into the debug log
     M.fx.push({ x, y: y - 60, timer: opts.life || 45, life: opts.life || 45, text,
                 size: opts.size || 17, color: opts.color || '#ffdd00', rise: opts.rise !== false });
 }
@@ -793,7 +720,6 @@ function startMatch() {
     initializeMatch();
 }
 function initializeMatch() {
-    MUSIC.fadeOut();                                       // intro theme ends when the bell's coming
     const si = selectedStage >= 0 ? selectedStage : Math.floor(Math.random() * STAGES.length);
     activeStage = STAGES[si];
     ARENA.src = activeStage.src;
@@ -813,8 +739,6 @@ function initializeMatch() {
     M.p1.y = M.p2.y = matRect.T + (matRect.B - matRect.T) * 0.68;
 
     spawnWeapons();
-    DBG.log('MATCH: ' + M.p1.wrestler.id + ' vs ' + M.p2.wrestler.id + ' @ ' + activeStage.id +
-            ' diff:' + difficulty + ' canvas:' + canvas.width + 'x' + canvas.height);
     M.frame = 0; M.grapple = null; M.fx = []; M.particles = []; M.splats = [];
     M.freeze = 0; M.shake = 0; M.lastPinCount = 0;
     M.winner = null;
@@ -847,7 +771,6 @@ function endMatch(winner, method) {
     if (M.p1) { M.p1.climb = null; M.p1.diveTimer = 0; }
     if (M.p2) { M.p2.climb = null; M.p2.diveTimer = 0; }
     M.winner = winner; M.winMethod = method; M.winFrame = M.frame;
-    DBG.log('END: ' + winner.wrestler.id + ' wins by ' + method + ' @ ' + (M.frame / 60).toFixed(1) + 's');
     NET.hostReportEnd();
     M.phase = 'slowmo'; M.slowmoTimer = 90;
     Snd.slam(); shake(14); hitStop(10);
@@ -855,41 +778,8 @@ function endMatch(winner, method) {
     addFx(canvas.width / 2, canvas.height * 0.4 + 60, method + '!',
           { color: '#ff2255', size: 66, life: 90, rise: false });
 }
-// every finished match posts a report to Firebase (viewable on admin.html) — plain REST,
-// no SDK needed, fire-and-forget so it can never stall or break the game
-function reportMatch() {
-    try {
-        if (NET.mode === 'guest') return;                  // online: the host reports
-        if (!FIREBASE_CONFIG.databaseURL) return;
-        let pid = '';
-        try {
-            pid = localStorage.getItem('jcwPid') || '';
-            if (!pid) { pid = Math.random().toString(36).slice(2, 10); localStorage.setItem('jcwPid', pid); }
-        } catch (e) {}
-        const body = {
-            t: Date.now(),
-            p1: M.p1.wrestler.id, p2: M.p2.wrestler.id,
-            winner: M.winner.wrestler.id, method: M.winMethod || '?',
-            secs: Math.round((M.winFrame || M.frame) / 60),
-            stage: activeStage.id,
-            mode: NET.mode === 'none' ? 'cpu' : 'online',
-            diff: difficulty, pid, build: BUILD
-        };
-        DBG.log('report posting: ' + body.winner + ' by ' + body.method + '…');
-        fetch(FIREBASE_CONFIG.databaseURL + '/reports.json', {
-            method: 'POST', keepalive: true,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        }).then(r => DBG.log(r.ok ? 'report saved ✓ (HTTP ' + r.status + ')' :
-                             'report REJECTED (HTTP ' + r.status + ') — check Firebase rules', r.ok ? '' : 'dbg-err'))
-          .catch(e => DBG.log('report failed: ' + e.message, 'dbg-err'));
-    } catch (e) {}
-}
-
 function showVictory() {
     M.phase = 'over';
-    reportMatch();
-    // report the win to the JCW Lunacy site (Juggalo Locker) when embedded
     try {
         const localP = NET.mode === 'guest' ? M.p2 : M.p1;
         if (M.winner === localP && window.parent !== window)
@@ -961,8 +851,6 @@ function computeRects() {
                         Math.abs(om.T - matRect.T) > 0.5 || Math.abs(om.B - matRect.B) > 0.5)) {
         const mx = x => matRect.L + (x - om.L) * (matRect.R - matRect.L) / (om.R - om.L);
         const my = y => matRect.T + (y - om.T) * (matRect.B - matRect.T) / (om.B - om.T);
-        DBG.log('re-anchor: mat ' + Math.round(om.L) + ',' + Math.round(om.T) + '/' + Math.round(om.R) + ',' + Math.round(om.B) +
-                ' → ' + Math.round(matRect.L) + ',' + Math.round(matRect.T) + '/' + Math.round(matRect.R) + ',' + Math.round(matRect.B));
         [M.p1, M.p2].forEach(p => {
             if (!p) return;
             p.x = mx(p.x); p.y = my(p.y);
@@ -1015,7 +903,6 @@ document.addEventListener('keydown', e => {
     if (k === 'p' || k === 'escape') togglePause();
     if (k === 'f') toggleFullscreen();
     if (k === 'k') toggleCalib();
-    if (k === 'l') DBG.toggle();
     if (k === 'c' && calib.on) { try { navigator.clipboard.writeText(calibString()); addFx(canvas.width / 2, canvas.height * 0.3, 'COPIED!', { color: '#8dff1e', size: 18 }); } catch (e) {} }
     if (k === 'r' && calib.on) { activeStage.mat = { ...activeStage.matDefault }; addFx(canvas.width / 2, canvas.height * 0.3, 'RESET TO DEFAULTS', { color: '#ffe000', size: 18 }); }
     if (k === 'escape' && calib.on) cancelCalib();
@@ -1097,7 +984,6 @@ function toggleCalib() {
     }
     if (!calib.on) {
         calibSave();
-        DBG.log('CALIB SAVED: ' + calibString());
         console.log('%cJCW RING CALIBRATION → ' + calibString(), 'color:#8dff1e;font-weight:bold');
         addFx(canvas.width / 2, canvas.height * 0.3, 'CALIBRATION SAVED', { color: '#8dff1e', size: 20 });
         const pb = document.getElementById('pauseBtn');
@@ -1164,11 +1050,11 @@ if (!TOUCH) {
 // portrait-only: auto-pause a live match if the phone is turned landscape, resume on return
 let autoPaused = false;
 function checkOrientation() {
-    const landscape = window.matchMedia('(orientation:landscape)').matches;
+    const portrait = window.matchMedia('(orientation:portrait)').matches;
     const pb = document.getElementById('pauseBtn');
-    if (TOUCH && landscape && M.phase === 'fight' && !paused) {
+    if (TOUCH && portrait && M.phase === 'fight' && !paused) {
         paused = true; autoPaused = true; if (pb) pb.textContent = '▶';
-    } else if (!landscape && autoPaused && paused) {
+    } else if (!portrait && autoPaused && paused) {
         paused = false; autoPaused = false; if (pb) pb.textContent = '❚❚';
     }
     if (typeof resizeCanvas === 'function' && document.getElementById('gameContainer').classList.contains('active')) resizeCanvas();
@@ -1218,9 +1104,8 @@ function performTap(p1, p2, x, y) {
     const p2vy = p2.y + p2.elev * ringDrop();   // enemy's on-screen position
     const dEnemy = Math.hypot(x - p2.x, y - p2vy);
     const pEnemy = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-    // pin (only counts in the ring)
+    // pin
     if (dEnemy < 95 && p2.downTimer > 0 && !M.grapple) {
-        if (isRingside(p2)) { addFxOnce('ringpin', p2.x, p2.y - 40, 'PIN IN THE RING!'); return; }
         if (pEnemy < 190) {
             p1.x = p2.x - p1.direction * 30; p1.y = p2.y;
             M.grapple = { holder: p1, victim: p2, frames: 0, isPin: true };
@@ -1260,8 +1145,6 @@ function dealDamage(attacker, victim, base, opts = {}) {
     const scale = Math.max(0.6, 1 - (attacker.combo - 1) * 0.05);
     const dmg = base * attacker.wrestler.power * scale;
     victim.health = Math.max(0, victim.health - dmg);
-    DBG.log((attacker.isP1 ? 'P1' : 'P2') + ' hit ' + (victim.isP1 ? 'P1' : 'P2') + ' -' + dmg.toFixed(1) +
-            (attacker.combo > 1 ? ' (x' + attacker.combo + ')' : '') + ' → hp ' + Math.round(victim.health));
 
     // juice
     addFx(victim.x + (Math.random()-0.5)*54, victim.y - Math.random()*20, Math.round(dmg).toString(),
@@ -1445,11 +1328,7 @@ function performGrappleBtn(p, o, dir) {
     }
     if (M.grapple) return;
     const adx = Math.abs(o.x - p.x), ady = Math.abs(o.y - p.y);
-    // pin a downed opponent — pins only count IN the ring
-    if (o.downTimer > 0 && adx < 100 && ady < 70 && isRingside(o)) {
-        addFxOnce('ringpin', o.x, o.y - 40, 'PIN IN THE RING!');
-        return;
-    }
+    // pin a downed opponent
     if (o.downTimer > 0 && adx < 100 && ady < 70) {
         p.x = o.x - (Math.sign(o.x - p.x) || p.direction) * 34;
         p.y = o.y + 8;
@@ -1647,10 +1526,9 @@ function simTick() {
     p1.moving = false;
     if (p1.climb && input.dpad.y > 0) { p1.climb = null; }                 // step down off the ropes
     if (!p1Locked && p1.downTimer <= 0 && p1.stunTimer <= 0 && !p1.climb && p1.diveTimer <= 0) {
-        // rooted while swinging: no more full-speed gliding in a frozen punch pose
-        if (input.dpad.x !== 0 && p1.swingTimer <= 0) { p1.vx = input.dpad.x * 4.4 * p1.wrestler.speed; p1.direction = input.dpad.x; p1.moving = true; }
+        if (input.dpad.x !== 0) { p1.vx = input.dpad.x * 4.4 * p1.wrestler.speed; p1.direction = input.dpad.x; p1.moving = true; }
         else p1.vx *= 0.8;
-        if (input.dpad.y !== 0 && p1.swingTimer <= 0) { p1.vy = input.dpad.y * 3.3 * p1.wrestler.speed; p1.moving = true; }
+        if (input.dpad.y !== 0) { p1.vy = input.dpad.y * 3.3 * p1.wrestler.speed; p1.moving = true; }
         else p1.vy *= 0.8;
     }
     if (p1.moving) {
@@ -1696,20 +1574,6 @@ function simTick() {
         if (p.y <= matRect.B + 8) {
             p.x = Math.max(matRect.L, Math.min(matRect.R, p.x));
             p.y = Math.max(matRect.T, p.y);
-            // the bottom rope CONTAINS the match: ordinary movement and knockback can't
-            // drift out the front any more (fights used to slide ringside in the first
-            // exchange and stay there). Ways out: a hard throw, a tumbling body, or
-            // deliberately holding DOWN against the rope for ~half a second.
-            if (p.y > matRect.B && p.downTimer <= 0 && Math.hypot(p.vx, p.vy) < 9) {
-                if (p.vy > 0.5) {                          // pushing down against the rope
-                    p.exitTimer = (p.exitTimer || 0) + 1;
-                    if (p.exitTimer > 30) { p.exitTimer = 0; p.y = matRect.B + 9; }   // duck out
-                    else {
-                        if (p.exitTimer === 12) addFxOnce('ropes' + (p.isP1 ? '1' : '2'), p.x, p.y - 40, 'DUCKING OUT…');
-                        p.y = matRect.B; p.vy *= 0.5;
-                    }
-                } else { p.exitTimer = 0; p.y = matRect.B; if (p.vy > 0) p.vy *= -0.4; }
-            } else if (p.y <= matRect.B - 4) p.exitTimer = 0;
         } else {
             p.x = Math.max(floorRect.L, Math.min(floorRect.R, p.x));
         }
@@ -1817,7 +1681,6 @@ function aiUpdate(ai, target) {
     }
     if (ai.downTimer > 0) { ai.downTimer--; ai.moving = false; return; }
     if (ai.stunTimer > 0) return;
-    if (ai.swingTimer > 0) { ai.moving = false; return; }   // rooted while swinging, same as the player
     const locked = M.grapple && (M.grapple.victim === ai || M.grapple.holder === ai);
     if (locked) { ai.moving = false; return; }
 
@@ -1832,7 +1695,7 @@ function aiUpdate(ai, target) {
     // cooldown after a kickout) — otherwise put the boots to them. No more pin spam.
     if (ai.aiPinCd > 0) ai.aiPinCd--;
     if (target.downTimer > 0 && !M.grapple) {
-        const worthPin = ai.aiPinCd <= 0 && target.health < target.maxHealth * 0.6 && !isRingside(target);
+        const worthPin = ai.aiPinCd <= 0 && target.health < target.maxHealth * 0.6;
         if (dist < 85) {
             if (worthPin) {
                 ai.x = target.x - (Math.sign(target.x - ai.x) || ai.direction) * 34;
@@ -1958,9 +1821,9 @@ function applyRemote(p, opp) {
     p.moving = false;
     if (p.climb && inp.dy > 0) p.climb = null;
     if (!locked && p.downTimer <= 0 && p.stunTimer <= 0 && !p.climb && p.diveTimer <= 0) {
-        if (inp.dx !== 0 && p.swingTimer <= 0) { p.vx = inp.dx * 4.4 * p.wrestler.speed; p.direction = inp.dx; p.moving = true; }
+        if (inp.dx !== 0) { p.vx = inp.dx * 4.4 * p.wrestler.speed; p.direction = inp.dx; p.moving = true; }
         else p.vx *= 0.8;
-        if (inp.dy !== 0 && p.swingTimer <= 0) { p.vy = inp.dy * 3.3 * p.wrestler.speed; p.moving = true; }
+        if (inp.dy !== 0) { p.vy = inp.dy * 3.3 * p.wrestler.speed; p.moving = true; }
         else p.vy *= 0.8;
     }
     if (p.moving) p.walkAnim += 0.05 + 0.05 * Math.hypot(p.vx, p.vy);
@@ -2028,6 +1891,8 @@ const FIREBASE_CONFIG = {
 const NET = {
     mode: 'none',           // none | host | guest
     db: null, roomCode: null, roomRef: null,
+    myName: (function(){try{return (new URLSearchParams(location.search).get('jn')||'').slice(0,24);}catch(e){return'';}})(),
+    jnames: { p1: '', p2: '' },
     remote: { dx: 0, dy: 0, attack: false, grap: false, special: false, taps: [] },
     snapPrev: null, snapNext: null, snapAt: 0,
     lastSentInput: 0, lastSentSnap: 0, prevHP: [0, 0], prevDown: [0, 0], prevPin: 0,
@@ -2083,7 +1948,7 @@ const NET = {
         this.roomRef = this.db.ref('rooms/' + this.roomCode);
         await this.roomRef.set({
             state: 'lobby', created: Date.now(),
-            host: { wrestler: wrestlerId }, stage: selectedStage
+            host: { wrestler: wrestlerId, name: this.myName }, stage: selectedStage
         });
         this.roomRef.child('host/online').onDisconnect().remove();
         this.roomRef.child('host/online').set(true);
@@ -2099,7 +1964,7 @@ const NET = {
         if (!snap.exists() || snap.val().guest) return false;
         this.roomCode = code; this.roomRef = ref; this.mode = 'guest';
         gameState.p2Selected = wrestlers.find(w => w.id === wrestlerId) || gameState.p2Selected;
-        await ref.child('guest').set({ wrestler: wrestlerId });
+        await ref.child('guest').set({ wrestler: wrestlerId, name: this.myName });
         ref.child('guest/online').onDisconnect().remove();
         ref.child('guest/online').set(true);
         this.watchRoom();
@@ -2167,6 +2032,8 @@ const NET = {
                     this.roomRef.update({ state: 'playing' });
                     gameState.p1Selected = wrestlers.find(w => w.id === r.host.wrestler) || gameState.p1Selected || wrestlers[0];
                     gameState.p2Selected = wrestlers.find(w => w.id === r.guest.wrestler) || wrestlers[0];
+                    this.jnames.p1 = (r.host && r.host.name) || 'Juggalo';
+                    this.jnames.p2 = (r.guest && r.guest.name) || 'Juggalo';
                     startOnlineMatch();
                 }
                 if (r.state === 'playing' && r.guest && !r.guest.online) this.opponentLeft();
@@ -2174,6 +2041,8 @@ const NET = {
                 if (r.state === 'playing' && M.phase === 'idle') {
                     gameState.p1Selected = wrestlers.find(w => w.id === r.host.wrestler) || wrestlers[0];
                     gameState.p2Selected = wrestlers.find(w => w.id === (r.guest && r.guest.wrestler)) || gameState.p2Selected || wrestlers[0];
+                    this.jnames.p1 = (r.host && r.host.name) || 'Juggalo';
+                    this.jnames.p2 = (r.guest && r.guest.name) || 'Juggalo';
                     selectedStage = (typeof r.stage === 'number') ? r.stage : -1;
                     startOnlineMatch();
                 }
@@ -2400,6 +2269,15 @@ function drawHUD() {
         const nx = rightSide ? bx + barW : bx;
         ctx.strokeText(shortName(p.wrestler).toUpperCase(), nx, by + barH + 16);
         ctx.fillText(shortName(p.wrestler).toUpperCase(), nx, by + barH + 16);
+        if (NET.mode !== 'none') {
+            const jn = (p === M.p1 ? NET.jnames.p1 : NET.jnames.p2) || '';
+            if (jn) {
+                ctx.font = `700 ${mobile ? 8 : 11}px Arial`;
+                ctx.fillStyle = p.isP1 ? '#ffcc33' : '#66aaff';
+                ctx.strokeText(jn.toUpperCase(), nx, by + barH + (mobile ? 27 : 31));
+                ctx.fillText(jn.toUpperCase(), nx, by + barH + (mobile ? 27 : 31));
+            }
+        }
         let sub = '';
         if (p.weapon) sub = WEAPON_TYPES[p.weapon.type].name + ' x' + p.weapon.durability;
         if (p.combo >= 2) sub = (sub ? sub + '   ' : '') + p.combo + 'x COMBO';
@@ -2460,7 +2338,7 @@ function spriteFor(f) {
     if (f.climb) return { img: S.aIdleB || S.idle, flip: false };                     // back to camera on the ropes
     if (f.diveTimer > 0) {
         if (f.diveTimer > 20 && S.aJump) return { img: S.aJump[0], flip: f.direction < 0, noHeld: true };   // leap off the post
-        return { img: (S.aDive && S.aDive[0]) || S.jump, flip: f.direction < 0, noHeld: true };   // dive faces the direction of flight
+        return { img: (S.aDive && S.aDive[0]) || S.jump, flip: f.direction > 0, noHeld: true };
     }
     if (pinned || f.downTimer > 0) {
         if (!pinned && f.downTimer > 0 && f.downTimer <= 26 && S.aGetup)              // rising animation
@@ -2499,16 +2377,15 @@ function spriteFor(f) {
         // Moving UP (away from camera) with little horizontal motion: show the back.
         if (f.vy < -0.6 && Math.abs(f.vy) >= Math.abs(f.vx) && (S.aIdleB || S.idle))
             return { img: S.aIdleB || S.idle, flip: false };
-        // Walk art follows the direction of TRAVEL, not the combat facing — the AI faces
-        // its opponent at all times, so retreats/strafes/weapon runs used to moonwalk.
-        const mdir = Math.abs(f.vx) > 0.4 ? (f.vx < 0 ? -1 : 1) : f.direction;
         const fast = Math.hypot(f.vx, f.vy) > 3.3;
         const L = fast ? (S.aRunL || S.aWalkL) : (S.aWalkL || S.walkL), R = fast ? (S.aRunR || S.aWalkR) : (S.aWalkR || S.walkR);
         // walkL art faces LEFT and walkR art faces RIGHT — use the matching set AS-IS.
-        if (L && R) { const arr = mdir < 0 ? L : R; return { img: arr[Math.floor(f.walkAnim) % arr.length], flip: false }; }
+        // (The old code mirrored the chosen set, so wrestlers moonwalked: right-facing
+        //  art got flipped to face left while moving right.)
+        if (L && R) { const arr = f.direction < 0 ? L : R; return { img: arr[Math.floor(f.walkAnim) % arr.length], flip: false }; }
         const solo = R || L;               // only one side has art: mirror it for the other direction
-        if (solo) return { img: solo[Math.floor(f.walkAnim) % solo.length], flip: solo === R ? mdir < 0 : mdir > 0 };
-        return { img: S.aIdle || S.idle, flip: mdir < 0 };
+        if (solo) return { img: solo[Math.floor(f.walkAnim) % solo.length], flip: solo === R ? f.direction < 0 : f.direction > 0 };
+        return { img: S.aIdle || S.idle, flip: f.direction < 0 };
     }
     return { img: S.aIdle || S.idle, flip: false };
 }
@@ -2842,7 +2719,6 @@ function loop(t) {
     lastT = t;
     while (acc >= DT) { step(); acc -= DT; }
     render();
-    DBG.tick(t);
     requestAnimationFrame(loop);
 }
 
