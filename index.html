@@ -602,7 +602,7 @@ function populateRoster() {
         const card = document.createElement('div');
         card.className = 'wrestler-card';
         card.innerHTML = `<img src="ui/card_${w.base || w.id}.png" data-wid="${w.id}" alt="${w.name}"><span class="card-name">${shortName(w)}</span>`;
-        card.addEventListener('click', () => { showStats(w); selectWrestler(w, card); Snd.unlock(); });
+        card.addEventListener('click', () => { showStats(w); selectWrestler(w, card); Snd.unlock(); playIntroTheme(); });
         grid.appendChild(card);
     });
 }
@@ -709,15 +709,13 @@ function hitStop(frames) { M.freeze = Math.max(M.freeze, frames); }
 function shake(mag) { M.shake = Math.max(M.shake, mag); }
 
 // ---------------- MATCH FLOW ----------------
-// intro theme (plays on the VS intro overlay)
+// intro theme (starts on character select, loops through the whole match)
 const introTheme = new Audio('jcw_intro_theme.mp3');
 introTheme.preload = 'auto';
+introTheme.loop = true;
 introTheme.volume = 0.7;
 function playIntroTheme() {
-    try { introTheme.currentTime = 0; introTheme.play().catch(() => {}); } catch (e) {}
-}
-function stopIntroTheme() {
-    try { introTheme.pause(); introTheme.currentTime = 0; } catch (e) {}
+    try { if (introTheme.paused) introTheme.play().catch(() => {}); } catch (e) {}
 }
 function startMatch() {
     if (!gameState.p1Selected || !gameState.p2Selected || !spritesReady) return;
@@ -1413,7 +1411,6 @@ function step() {
         if (M.introTimer === 20) { Snd.bell(3); }
         if (M.introTimer <= 0) {
             document.getElementById('introOverlay').classList.add('hidden');
-            stopIntroTheme();
             M.phase = 'fight';
             addFx(canvas.width / 2, canvas.height * 0.42 + 60, 'FIGHT!', { color: '#ff2255', size: 78, life: 55, rise: false });
         }
