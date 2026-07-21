@@ -261,7 +261,7 @@ body.no-touch .hint-text { bottom:12px; }
 </div>
 
 <script>
-const BUILD = '2026-07-20-REPORTS2';
+const BUILD = '2026-07-20-RINGCONTAIN';
 console.log('%cLUNACY UNLOCKED — BUILD ' + BUILD + ' (press L in a match for the on-screen debug log)', 'color:#8dff1e;font-weight:bold');
 'use strict';
 /* ================================================================
@@ -683,7 +683,7 @@ let floorRect = { L:0, R:0, T:0, B:0 };
 
 function makeFighter(isP1) {
     return {
-        climb: null, diveTimer: 0, fallFace: 'B',
+        climb: null, diveTimer: 0, fallFace: 'B', exitTimer: 0,
         isP1, wrestler:null,
         x:0, y:0, vx:0, vy:0, direction: isP1 ? 1 : -1,
         health:100, maxHealth:100, ghostHP:100,
@@ -1218,8 +1218,9 @@ function performTap(p1, p2, x, y) {
     const p2vy = p2.y + p2.elev * ringDrop();   // enemy's on-screen position
     const dEnemy = Math.hypot(x - p2.x, y - p2vy);
     const pEnemy = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-    // pin
+    // pin (only counts in the ring)
     if (dEnemy < 95 && p2.downTimer > 0 && !M.grapple) {
+        if (isRingside(p2)) { addFxOnce('ringpin', p2.x, p2.y - 40, 'PIN IN THE RING!'); return; }
         if (pEnemy < 190) {
             p1.x = p2.x - p1.direction * 30; p1.y = p2.y;
             M.grapple = { holder: p1, victim: p2, frames: 0, isPin: true };
@@ -1444,7 +1445,11 @@ function performGrappleBtn(p, o, dir) {
     }
     if (M.grapple) return;
     const adx = Math.abs(o.x - p.x), ady = Math.abs(o.y - p.y);
-    // pin a downed opponent
+    // pin a downed opponent — pins only count IN the ring
+    if (o.downTimer > 0 && adx < 100 && ady < 70 && isRingside(o)) {
+        addFxOnce('ringpin', o.x, o.y - 40, 'PIN IN THE RING!');
+        return;
+    }
     if (o.downTimer > 0 && adx < 100 && ady < 70) {
         p.x = o.x - (Math.sign(o.x - p.x) || p.direction) * 34;
         p.y = o.y + 8;
@@ -1691,6 +1696,20 @@ function simTick() {
         if (p.y <= matRect.B + 8) {
             p.x = Math.max(matRect.L, Math.min(matRect.R, p.x));
             p.y = Math.max(matRect.T, p.y);
+            // the bottom rope CONTAINS the match: ordinary movement and knockback can't
+            // drift out the front any more (fights used to slide ringside in the first
+            // exchange and stay there). Ways out: a hard throw, a tumbling body, or
+            // deliberately holding DOWN against the rope for ~half a second.
+            if (p.y > matRect.B && p.downTimer <= 0 && Math.hypot(p.vx, p.vy) < 9) {
+                if (p.vy > 0.5) {                          // pushing down against the rope
+                    p.exitTimer = (p.exitTimer || 0) + 1;
+                    if (p.exitTimer > 30) { p.exitTimer = 0; p.y = matRect.B + 9; }   // duck out
+                    else {
+                        if (p.exitTimer === 12) addFxOnce('ropes' + (p.isP1 ? '1' : '2'), p.x, p.y - 40, 'DUCKING OUT…');
+                        p.y = matRect.B; p.vy *= 0.5;
+                    }
+                } else { p.exitTimer = 0; p.y = matRect.B; if (p.vy > 0) p.vy *= -0.4; }
+            } else if (p.y <= matRect.B - 4) p.exitTimer = 0;
         } else {
             p.x = Math.max(floorRect.L, Math.min(floorRect.R, p.x));
         }
@@ -1813,7 +1832,7 @@ function aiUpdate(ai, target) {
     // cooldown after a kickout) — otherwise put the boots to them. No more pin spam.
     if (ai.aiPinCd > 0) ai.aiPinCd--;
     if (target.downTimer > 0 && !M.grapple) {
-        const worthPin = ai.aiPinCd <= 0 && target.health < target.maxHealth * 0.6;
+        const worthPin = ai.aiPinCd <= 0 && target.health < target.maxHealth * 0.6 && !isRingside(target);
         if (dist < 85) {
             if (worthPin) {
                 ai.x = target.x - (Math.sign(target.x - ai.x) || ai.direction) * 34;
