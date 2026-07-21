@@ -709,9 +709,20 @@ function hitStop(frames) { M.freeze = Math.max(M.freeze, frames); }
 function shake(mag) { M.shake = Math.max(M.shake, mag); }
 
 // ---------------- MATCH FLOW ----------------
+// intro theme (plays on the VS intro overlay)
+const introTheme = new Audio('jcw_intro_theme.mp3');
+introTheme.preload = 'auto';
+introTheme.volume = 0.7;
+function playIntroTheme() {
+    try { introTheme.currentTime = 0; introTheme.play().catch(() => {}); } catch (e) {}
+}
+function stopIntroTheme() {
+    try { introTheme.pause(); introTheme.currentTime = 0; } catch (e) {}
+}
 function startMatch() {
     if (!gameState.p1Selected || !gameState.p2Selected || !spritesReady) return;
     Snd.unlock();
+    playIntroTheme();
     const cs = document.getElementById('characterSelect');
     cs.classList.add('hidden');
     cs.style.display = 'none';
@@ -1402,6 +1413,7 @@ function step() {
         if (M.introTimer === 20) { Snd.bell(3); }
         if (M.introTimer <= 0) {
             document.getElementById('introOverlay').classList.add('hidden');
+            stopIntroTheme();
             M.phase = 'fight';
             addFx(canvas.width / 2, canvas.height * 0.42 + 60, 'FIGHT!', { color: '#ff2255', size: 78, life: 55, rise: false });
         }
