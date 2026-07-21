@@ -821,7 +821,13 @@ let CAM = { fx: 0, fy: 0, scale: 1.12, tx: 0, ty: 0, init: false };   // follow 
 function computeRects() {
     const om = { L: matRect.L, R: matRect.R, T: matRect.T, B: matRect.B };   // previous mapping
     const iw = ARENA.naturalWidth || 1672, ih = ARENA.naturalHeight || 941;
-    const mt = activeStage.mat;
+    // playable area = the whole ring: union the inner mat with the rope boundary so
+    // fighters can use the full ring floor all the way out to the ropes
+    const _m = activeStage.mat, _r = activeStage.rope || activeStage.mat;
+    const mt = {
+        x0: Math.min(_m.x0, _r.x0), x1: Math.max(_m.x1, _r.x1),
+        y0: Math.min(_m.y0, _r.y0), y1: Math.max(_m.y1, _r.y1)
+    };
     // Portrait phones are much taller than the 16:9 arena, so a plain contain-fit leaves
     // the ring tiny with big black bars. On portrait we zoom IN on the ring so it fills the
     // screen (cropping the arena sides / crowd). Desktop/landscape keeps the whole-level view.
